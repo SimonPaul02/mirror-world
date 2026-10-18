@@ -6,13 +6,18 @@
   "description": "MQ-9 Reaper flight simulation on a CesiumJS globe with a free observer camera",
   "scripts": {
     "postinstall": "node scripts/copy-cesium-assets.mjs && node scripts/make-mq9.mjs",
-    "predev": "node scripts/copy-cesium-assets.mjs && node scripts/make-mq9.mjs",
+    "predev": "node scripts/copy-cesium-assets.mjs && node scripts/make-mq9.mjs && node scripts/prepare-trajectory.mjs",
     "dev": "vite",
-    "prebuild": "node scripts/copy-cesium-assets.mjs && node scripts/make-mq9.mjs",
+    "prebuild": "node scripts/copy-cesium-assets.mjs && node scripts/make-mq9.mjs && node scripts/prepare-trajectory.mjs",
     "build": "tsc --noEmit && vite build",
     "preview": "vite preview",
     "typecheck": "tsc --noEmit",
+    "terrain:validate": "node terrain/validate.mjs",
+    "trajectory:generate": "node terrain/generate.mjs",
+    "terrain:test": "node --test terrain/tests/*.test.mjs",
     "model:mq9": "node scripts/make-mq9.mjs",
+    "replay:prepare": "node scripts/prepare-trajectory.mjs",
+    "trajectory:export-receiver": "node terrain/export-receiver.mjs",
     "mock:trajectory": "node --import ./scripts/register-typescript.mjs scripts/make-mock-trajectory.mjs",
     "generate:rf": "node --import ./scripts/register-typescript.mjs scripts/generate-rf.mjs",
     "test:sensors": "node --import ./scripts/register-typescript.mjs tests/sensors.test.mjs",
@@ -20,7 +25,8 @@
     "demo:rf": "npm run generate:rf && npm run validate:rf && python3 -m rf_fusion.cli --scenario outputs/mock_60s/scenario.json --output outputs/mock_60s --diagnostics outputs/mock_60s/rf_diagnostics.json"
   },
   "dependencies": {
-    "cesium": "^1.146.0"
+    "cesium": "^1.146.0",
+    "geotiff": "^3.0.5"
   },
   "devDependencies": {
     "typescript": "^5.9.2",

@@ -1,11 +1,14 @@
 # RF scenario export and trajectory demo
 
+The Odesa trajectory generator is at `/`; the original RF simulation and its
+Scenario JSON export are at `/scenario.html`.
+
 ## Generate a scenario in the app
 
 Install with `npm ci`, then run `npm run dev`. Open a URL such as:
 
 ```
-http://localhost:5173/?seed=42&route=full&duration_s=180&sample_s=2
+http://localhost:3000/scenario.html?seed=42&route=full&duration_s=180&sample_s=2
 ```
 
 `route` accepts `full`, `south`, or `varied`. The `varied` option perturbs the Donbas waypoints and altitudes from the seed, producing a different flight path; `seed` also controls RF noise. `duration_s` is 120–21600 seconds; `sample_s` is 1–60 seconds. The defaults are the full Donbas route, seed 20261103, 180 seconds, and 2-second samples. Press **T** to speed up the simulation. After it has run for a few minutes, press **Scenario .json** in the TAK panel.

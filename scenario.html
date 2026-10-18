@@ -1,0 +1,104 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Mirror World — Donbas scenario</title>
+  </head>
+  <body>
+    <div id="cesium" class="cesium-root"></div>
+
+    <div id="boot" class="boot">
+      <div class="boot__spinner"></div>
+      <p class="boot__text">Loading globe…</p>
+    </div>
+
+    <!-- Airframe data -->
+    <section id="spec" class="card card--left">
+      <header class="card__head">
+        <h1>MQ-9 <span class="card__sub">Reaper</span></h1>
+        <button id="spec-toggle" class="icon-btn" title="Toggle specifications">—</button>
+      </header>
+      <p class="card__role">Medium-altitude long-endurance UCAV</p>
+      <dl id="spec-list" class="rows"></dl>
+    </section>
+
+    <div class="rail rail--right">
+      <!-- Camera controls -->
+      <section id="help" class="card">
+        <header class="card__head">
+          <h2>Free camera</h2>
+          <button id="help-toggle" class="icon-btn" title="Toggle controls (H)">?</button>
+        </header>
+        <dl id="help-keys" class="rows"></dl>
+      </section>
+
+      <!-- Scenario state -->
+      <section id="mission" class="card">
+        <header class="card__head">
+          <h1>Mission <span class="card__sub">Donbas</span></h1>
+        </header>
+        <p id="scenario-name" class="card__role">—</p>
+        <dl id="mission-list" class="rows"></dl>
+      </section>
+    </div>
+
+    <!-- TAK feed -->
+    <section id="cot" class="card card--feed">
+      <header class="card__head">
+        <h1>TAK feed <span class="card__sub">Cursor on Target</span></h1>
+        <button id="cot-toggle" class="icon-btn" title="Toggle the feed (K)">—</button>
+      </header>
+      <div class="feed__status">
+        <span id="cot-state" class="badge">—</span>
+        <span id="cot-count" class="mono">0 events</span>
+      </div>
+      <pre id="cot-xml" class="feed__xml">waiting for the first report…</pre>
+      <div class="feed__actions">
+        <button id="cot-download" class="btn">Download .cot</button>
+        <button id="cot-manifest" class="btn btn--ghost">Manifest .json</button>
+        <button id="scenario-download" class="btn btn--ghost">Scenario .json</button>
+      </div>
+      <p id="scenario-export-status" class="card__role" aria-live="polite"></p>
+    </section>
+
+    <!-- Telemetry -->
+    <section id="hud" class="hud">
+      <div class="hud__row">
+        <div class="gauge">
+          <span class="gauge__k">ALT</span><span id="hud-alt" class="gauge__v">—</span><span class="gauge__u">ft</span>
+        </div>
+        <div class="gauge">
+          <span class="gauge__k">AGL</span><span id="hud-agl" class="gauge__v">—</span><span class="gauge__u">m</span>
+        </div>
+        <div class="gauge">
+          <span class="gauge__k">TAS</span><span id="hud-tas" class="gauge__v">—</span><span class="gauge__u">km/h</span>
+        </div>
+        <div class="gauge">
+          <span class="gauge__k">V/S</span><span id="hud-vs" class="gauge__v">—</span><span class="gauge__u">ft/min</span>
+        </div>
+        <div class="gauge">
+          <span class="gauge__k">HDG</span><span id="hud-hdg" class="gauge__v">—</span><span class="gauge__u">°</span>
+        </div>
+        <div class="gauge">
+          <span class="gauge__k">THR</span><span id="hud-thr" class="gauge__v">—</span><span class="gauge__u">%</span>
+        </div>
+        <div class="gauge">
+          <span class="gauge__k">FUEL</span><span id="hud-fuel" class="gauge__v">—</span><span class="gauge__u">kg</span>
+        </div>
+        <div class="gauge">
+          <span class="gauge__k">ENDUR</span><span id="hud-endurance" class="gauge__v">—</span><span class="gauge__u">left</span>
+        </div>
+      </div>
+      <div class="hud__row hud__row--sub">
+        <span id="hud-pos" class="mono">—</span>
+        <span id="hud-mission" class="mono">T+00:00:00</span>
+        <span id="hud-mode" class="badge">FOLLOW</span>
+        <span id="hud-warp" class="badge badge--dim">1×</span>
+        <span id="hud-cam" class="mono">—</span>
+      </div>
+    </section>
+
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>
