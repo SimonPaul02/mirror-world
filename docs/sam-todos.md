@@ -78,3 +78,17 @@ For a live connection, the same sample fields can be passed directly each tick i
 - `src/signals.ts` already simulates RF detections, terrain loss, noisy bearings, and crossed-bearing fixes.
 - `src/scenario.ts` defines the Donbas route and receiver defaults. `src/main.ts` now accepts query parameters and exports the captured scenario through `src/scenario-data.ts`.
 - `examples/scenario_2d_fixture.json` is a 30-second local-coordinate test fixture, not proof of real-terrain scenario generation.
+
+## RF model choice and sources
+
+The challenge requires a radio signal trace that is faithful to the scenario; it does not mandate a particular RF library, propagation standard, or trained AI model. Some mathematical sensor simulation is needed to generate those records.
+
+For this MVP, keep the lightweight model already in `src/signals.ts`:
+
+- Distance/frequency attenuation using free-space path loss; reference: [ITU-R P.525](https://www.itu.int/rec/R-REC-P.525/en).
+- Approximate terrain attenuation using the single knife-edge diffraction formula applied to the worst sampled obstruction; reference: [ITU-R P.526](https://www.itu.int/rec/R-REC-P.526/en). This is a simplified approximation, not a complete implementation of the recommendation.
+- Configured transmitter frequency/power and receiver gain/noise floor, plus heuristic fading, bearing error, and a detection threshold. The bearing/noise parameters are simulation assumptions, not calibrated hardware measurements.
+
+An existing external propagation library is [NTIA's Irregular Terrain Model](https://github.com/NTIA/itm). It predicts terrestrial path loss from terrain and radio parameters; it would still need our bearing/detection model and an assessment of its suitability for the drone's flight conditions. It is an alternative, not a dependency of the current MVP.
+
+- [ ] Validate the RF model with a clear path versus an obstructing ridge, a distance-loss sanity check, and the selected real terrain before presenting its outputs as a demonstrated terrain-aware generator.
