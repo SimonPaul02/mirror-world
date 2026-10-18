@@ -24,6 +24,16 @@ export interface TerrainGrid {
 
 export type SensorTerrain = SyntheticTerrain | TerrainGrid;
 
+/** Express a receiver's local true-north azimuth in the shared origin ENU frame. */
+export function bearingInOriginFrame(origin: LocalOrigin, receiver: LocalOrigin, bearingDeg: number): number {
+  const reference = Transforms.eastNorthUpToFixedFrame(Cartesian3.fromDegrees(origin.lon, origin.lat));
+  const sensor = Transforms.eastNorthUpToFixedFrame(Cartesian3.fromDegrees(receiver.lon, receiver.lat));
+  const radians = bearingDeg * Math.PI / 180;
+  const world = Matrix4.multiplyByPointAsVector(sensor, new Cartesian3(Math.sin(radians), Math.cos(radians), 0), new Cartesian3());
+  const local = Matrix4.multiplyByPointAsVector(Matrix4.inverseTransformation(reference, new Matrix4()), world, new Cartesian3());
+  return (Math.atan2(local.x, local.y) * 180 / Math.PI + 360) % 360;
+}
+
 export function toLocalXY(origin: LocalOrigin, point: Cartographic): [number, number] {
   const start = Cartographic.fromDegrees(origin.lon, origin.lat);
   if (Math.abs(start.latitude - point.latitude) + Math.abs(start.longitude - point.longitude) < 1e-12) return [0, 0];

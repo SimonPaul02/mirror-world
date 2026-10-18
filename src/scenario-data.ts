@@ -2,12 +2,14 @@ import { Cartographic, EllipsoidGeodesic, Math as CesiumMath } from "cesium";
 
 import type { Emitter, ReceiverSite, Waypoint } from "./scenario";
 import type { Detection } from "./signals";
+import { bearingInOriginFrame } from "./sensor-terrain";
 
 export interface RfObservation {
   id: string;
   timestamp_s: number;
   sensor_id: string;
   bearing_deg: number;
+  sensor_bearing_deg: number;
   frequency_mhz: number;
   power_dbm: number;
   snr_db: number;
@@ -163,7 +165,8 @@ export class ScenarioCapture {
         id,
         timestamp_s,
         sensor_id: detection.receiver.uid,
-        bearing_deg: detection.measuredBearingDeg,
+        bearing_deg: bearingInOriginFrame({ lat: CesiumMath.toDegrees(this.origin.latitude), lon: CesiumMath.toDegrees(this.origin.longitude) }, detection.receiver, detection.measuredBearingDeg),
+        sensor_bearing_deg: detection.measuredBearingDeg,
         frequency_mhz: this.data.configuration.emitter.freqMhz,
         power_dbm: detection.rssiDbm,
         snr_db: detection.snrDb,

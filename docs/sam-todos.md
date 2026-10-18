@@ -2,7 +2,7 @@
 
 Working agreement: keep this checklist current and automatically commit completed, verified changes as we work together.
 
-Latest verification: app production build passed; four Python tests passed; the fixture CLI produced its track JSON, metrics JSON, and comparison PNG (43.9 m RMSE, five prediction-only frames). A synthetic capture contract check passed with 60 truth frames, 120 RF observations, and 120 associations. A live browser capture with real terrain is still pending.
+Latest verification: app production build passed; 10 sensor tests and five Python tests passed. `npm run demo:rf` now imports a one-minute mock of Arda's flight, generates 85 detections and 35 missing-detection diagnostics, and writes the complete scenario, validation reports, and two plots. RF1 detects all 60 samples; a synthetic ridge blocks RF2 at seconds 11–45. Tracking RMSE is 73.6 m across all 60 frames, including 35 prediction-only frames. A live browser capture with real terrain is still pending.
 
 ## What the challenge requires
 
@@ -20,14 +20,15 @@ The sensor data should plausibly follow the same underlying scenario: position c
 
 - [x] **Draft the shared data contract.** The `Scenario .json` download contains ENU receiver positions, a common sample clock, drone truth, RF observations, and associations. `README_RF_FUSION.md` documents it.
 - [ ] **Confirm the contract with teammates.** Ard supplies the timestamped trajectory and altitude; Simone confirms the terrain area/provider and receiver sites; Ygit confirms the export/UI handoff. These people have not yet confirmed the contract.
-- [ ] **Import Arda's trajectory export.** Accept the `drone_trajectory.json` contract below and feed its sampled positions to the RF generator. The current browser capture uses this repo's own live flight simulation; importing Arda's file is still pending.
+- [x] **Implement Arda's trajectory importer.** `src/trajectory.ts` validates the proposed JSON contract; the headless RF generator consumes it directly. A one-minute, 1 Hz curved-flight mock is in `examples/drone_trajectory_mock_60s.json`. Replace its input path when Arda's file arrives. The browser still uses its built-in flight rather than this imported trajectory.
+- [x] **Configure mock receiver placement and RF settings.** `examples/rf_sensor_config.json` defines two arrays 3 km apart, transmitter frequency/power, receiver heights/gains/noise, and a synthetic ridge. The observed fixes have crossing angles of about 45–68 degrees. Actual terrain/site selection remains to be finalized with Simone; Sam owns the sensors.
 - [x] **Connect the existing RF model to scenario capture.** `src/signals.ts` generates per-receiver power, noisy global bearings, and missed detections from the flown truth. The capture records these with a fixed seed. Each report now records how much of its RF path had terrain samples.
 - [x] **Implement a configurable scenario export.** URL parameters select seed, route variant (`full`, `south`, or seeded waypoint variation), duration, and sample interval. The download includes configuration, truth, observations, misses, and a separate observation-to-object answer key. A presentation run must cover at least a few minutes; the 30-second fixture is only a development test.
 - [x] **Add structural validation.** Export warnings check duration, real-terrain provider availability, terrain path sample coverage, timestamps, bearings, IDs, and associations.
 - [ ] **Verify a live terrain-backed capture.** Run the browser with loaded real Ukrainian terrain for at least two minutes, export JSON, inspect the warnings and signal behavior, and fix any terrain coverage gaps. This has not yet been run in this workspace.
 - [ ] **Exercise Ard's route variants.** Verify at least a straight and a curved route once Ard supplies them. Current app choices are the existing full Donbas circuit and a shorter southern circuit.
 - [x] **Demonstrate independent 2D localization.** `rf_fusion` intersects simultaneous forward AoA rays and rejects weak geometry; it does not read truth or associations.
-- [x] **Demonstrate trajectory estimation.** A constant-velocity Kalman filter predicts through RF dropouts. The CLI exports JSON metrics and a comparison PNG. The 30-second fixture produced 25 intersections, five prediction-only frames, and 43.9 m RMSE; four tests passed.
+- [x] **Demonstrate trajectory estimation.** A constant-velocity Kalman filter predicts through RF dropouts, weights fixes using bearing uncertainty and crossing geometry, and gates inconsistent measurements. The one-minute mock produces track/metrics JSON, a trajectory comparison PNG, and an RF power/terrain-loss PNG. Its 35-second outage is terrain-driven; the measured whole-track RMSE is 73.6 m.
 - [ ] **Hand Ygit a live exported scenario and its measured estimate.** The UI currently shows its own instantaneous crossed-bearing fixes; the independent filtered track is a downloadable report, not yet drawn in Cesium.
 
 ## MVP assumptions
@@ -82,4 +83,5 @@ For this MVP, keep the lightweight model already in `src/signals.ts`:
 
 An existing external propagation library is [NTIA's Irregular Terrain Model](https://github.com/NTIA/itm). It predicts terrestrial path loss from terrain and radio parameters; it would still need our bearing/detection model and an assessment of its suitability for the drone's flight conditions. It is an alternative, not a dependency of the current MVP.
 
-- [ ] Validate the RF model with a clear path versus an obstructing ridge, a distance-loss sanity check, and the selected real terrain before presenting its outputs as a demonstrated terrain-aware generator.
+- [x] **Validate the RF model on controlled cases.** Doubling distance adds 6.0206 dB loss. With noise disabled, clear paths give 60 fixes and perfect bearing crossings have less than 0.001 m horizontal error over this short route. Adding the synthetic ridge reduces RF2 detections from 60 to 25 with up to 39.6 dB additional attenuation; RF1 is unaffected. Missing terrain does not generate valid detections. See `outputs/mock_60s/rf_validation.json` and `npm run test:sensors`.
+- [ ] **Validate the selected real terrain.** The synthetic ridge proves model behavior, not real-world RF accuracy. Load Simone's real elevation data, check heights/coverage and receiver sites, and rerun the same pipeline for a longer final scenario.

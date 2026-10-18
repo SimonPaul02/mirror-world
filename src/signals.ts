@@ -272,23 +272,26 @@ export function crossBearings(detections: Detection[]): Fix | undefined {
 
   const origin = Cartographic.fromDegrees(a.receiver.lon, a.receiver.lat, 0);
   const enu = Transforms.eastNorthUpToFixedFrame(Cartographic.toCartesian(origin));
+  const inverseEnu = Matrix4.inverseTransformation(enu, new Matrix4());
 
-  // Both arrays in the local plane: A sits at the origin by construction.
-  const offset = new EllipsoidGeodesic(
-    origin,
-    Cartographic.fromDegrees(b.receiver.lon, b.receiver.lat, 0),
-  );
-  const baseline = offset.surfaceDistance;
-  const baselineBearing = offset.startHeading;
-  const bx = baseline * Math.sin(baselineBearing);
-  const by = baseline * Math.cos(baselineBearing);
+  // Transform B's site and local north into A's frame. Geodetic north at the
+  // two sites differs slightly; treating their azimuth frames as identical
+  // otherwise creates metre-scale error even with perfect measurements.
+  const bWorld = Cartesian3.fromDegrees(b.receiver.lon, b.receiver.lat);
+  const bLocal = Matrix4.multiplyByPoint(inverseEnu, bWorld, new Cartesian3());
+  const bx = bLocal.x;
+  const by = bLocal.y;
 
   const ua = toRad(a.measuredBearingDeg);
   const ub = toRad(b.measuredBearingDeg);
   const uax = Math.sin(ua);
   const uay = Math.cos(ua);
-  const ubx = Math.sin(ub);
-  const uby = Math.cos(ub);
+  const bEnu = Transforms.eastNorthUpToFixedFrame(bWorld);
+  const bDirectionWorld = Matrix4.multiplyByPointAsVector(bEnu, new Cartesian3(Math.sin(ub), Math.cos(ub), 0), new Cartesian3());
+  const bDirectionLocal = Matrix4.multiplyByPointAsVector(inverseEnu, bDirectionWorld, new Cartesian3());
+  const bLength = Math.hypot(bDirectionLocal.x, bDirectionLocal.y);
+  const ubx = bDirectionLocal.x / bLength;
+  const uby = bDirectionLocal.y / bLength;
 
   const denominator = cross2(uax, uay, ubx, uby);
   const crossAngleDeg = toDeg(Math.asin(clamp(Math.abs(denominator), 0, 1)));
