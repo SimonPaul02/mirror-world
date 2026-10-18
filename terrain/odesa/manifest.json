@@ -1,0 +1,121 @@
+{
+  "schema_version": "1.0",
+  "terrain_id": "odesa_demo_01",
+  "name": "Odesa area - Copernicus GLO-30",
+  "dataset": {
+    "name": "Copernicus GLO-30 DSM",
+    "provider": "OpenTopography",
+    "provider_catalog_release": "DGED 2023_1",
+    "release_evidence": "Provider catalog; release is not encoded in these TIFF tags",
+    "source_url": "https://portal.opentopography.org/raster?opentopoID=OTSDEM.032021.4326.3",
+    "vertical_reference_source_url": "https://dataspace.copernicus.eu/explore-data/data-collections/copernicus-contributing-missions/collections-description/COP-DEM",
+    "documentation_checked_date": "2026-10-18",
+    "surface_type": "DSM: includes buildings and vegetation"
+  },
+  "coordinates": {
+    "horizontal_crs": "EPSG:4326",
+    "horizontal_units": "degrees",
+    "json_position_order": [
+      "longitude_deg",
+      "latitude_deg"
+    ],
+    "vertical_crs": "EPSG:3855",
+    "vertical_reference": "EGM2008",
+    "vertical_units": "metres",
+    "height_type": "orthometric",
+    "vertical_reference_evidence": "provider_documentation",
+    "vertical_crs_embedded_in_tiff": false
+  },
+  "grid": {
+    "pixel_size_degrees": [
+      0.0002777777777777778,
+      0.0002777777777777778
+    ],
+    "row_direction": "north_to_south",
+    "column_direction": "west_to_east",
+    "sample_origin_lon_lat": [
+      30.549999988888903,
+      46.70000001111111
+    ],
+    "sample_center_bounds_wsen": [
+      30.549999988888903,
+      46.300277788888884,
+      30.949722211111126,
+      46.70000001111111
+    ],
+    "pixel_edge_bounds_wsen": [
+      30.549861100000015,
+      46.30013889999999,
+      30.949861100000014,
+      46.7001389
+    ],
+    "requested_bounds_wsen": [
+      30.55,
+      46.3,
+      30.95,
+      46.7
+    ]
+  },
+  "assets": {
+    "surface_elevation": {
+      "path": "elevation.tif",
+      "sha256": "7c35d2531dc5d7c8ef4f3694c0b9bd08b47bd033dfb786ebac2a71f1b111641d",
+      "size_bytes": 5222419,
+      "source_archive": "rasters_COP30.tar.gz",
+      "source_member": "output_hh.tif",
+      "archive_sha256": "2ed10139d1b670cc0c6aea1759f7e9536098c764d0330eda8c2fed2ba50ebe7a",
+      "raster_type": "PixelIsPoint",
+      "sample_origin_lon_lat": [
+        30.549999988888903,
+        46.70000001111111
+      ]
+    },
+    "visualization_only": {
+      "path": "hillshade.tif",
+      "sha256": "a4f734752eed5c2c03c0683876192cb1d7fb16252af3e9b393f1747e3e4ce8ba",
+      "size_bytes": 615889,
+      "source_archive": "viz.tar.gz",
+      "source_member": "viz.hh_hillshade.tif",
+      "archive_sha256": "83cc5bf399b25fa7c13e680fabd5408a92704ae334066a60c5608d67830c5ebd",
+      "raster_type": "PixelIsArea",
+      "data_type": "uint8",
+      "declared_nodata": 0,
+      "nodata_pixel_count": 821740,
+      "pixel_edge_origin_lon_lat": [
+        30.549861100000015,
+        46.7001389
+      ]
+    }
+  },
+  "inspection": {
+    "width": 1440,
+    "height": 1440,
+    "band_count": 1,
+    "data_type": "float32",
+    "finite_pixel_count": 2073600,
+    "nonfinite_pixel_count": 0,
+    "minimum_elevation_m": -9.427443504333496,
+    "maximum_elevation_m": 88.47309875488281,
+    "zero_elevation_pixel_count": 810183,
+    "zero_elevation_fraction": 0.3907132523148148,
+    "negative_elevation_pixel_count": 82150,
+    "nodata_tag_present": false,
+    "declared_nodata": null
+  },
+  "policies": {
+    "out_of_bounds": "reject",
+    "missing_or_nonfinite_elevation": "reject",
+    "zero_elevation": "preserve; not a reliable water or validity mask",
+    "negative_elevation": "preserve",
+    "water_mask_available": false,
+    "surface_clearance_name": "height_above_surface_m",
+    "ellipsoidal_height_conversion_available": false
+  },
+  "attribution": "© DLR e.V. 2010-2014 and © Airbus Defence and Space GmbH 2014-2018 provided under COPERNICUS by the European Union and ESA; all rights reserved",
+  "integration": {
+    "status": "offline_trajectory_engine_ready",
+    "current_app_uses": "AWS Terrain Tiles via src/terrain.ts; scenario in src/scenario.ts",
+    "runtime_connected": false,
+    "trajectory_engine_available": true
+  }
+}

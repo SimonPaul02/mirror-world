@@ -90,6 +90,12 @@ nearly-complete base — it never reaches zero while the aircraft is moving.
 
 ## Build
 
+The offline Odesa elevation package and synthetic trajectory engine live in
+[`terrain/`](terrain/README.md). Run `npm run trajectory:generate` to create
+`terrain/generated/trajectory_truth.json`, `npm run terrain:validate` to check
+inputs and assets, and `npm run terrain:test` for engine tests. The browser
+simulation is not yet connected to this engine's output.
+
 ```bash
 npm run typecheck
 npm run build     # -> dist/

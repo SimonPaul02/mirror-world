@@ -12,10 +12,14 @@
     "build": "tsc --noEmit && vite build",
     "preview": "vite preview",
     "typecheck": "tsc --noEmit",
+    "terrain:validate": "node terrain/validate.mjs",
+    "trajectory:generate": "node terrain/generate.mjs",
+    "terrain:test": "node --test terrain/tests/*.test.mjs",
     "model:mq9": "node scripts/make-mq9.mjs"
   },
   "dependencies": {
-    "cesium": "^1.146.0"
+    "cesium": "^1.146.0",
+    "geotiff": "^3.0.5"
   },
   "devDependencies": {
     "typescript": "^5.9.2",
