@@ -3,9 +3,12 @@ import json
 import math
 from pathlib import Path
 
+import numpy as np
+
 from rf_fusion.evaluation import evaluate_track
 from rf_fusion.geometry import bearing_to_unit, triangulate_two_bearings
 from rf_fusion.pipeline import estimate_track
+from rf_fusion.tracking import ConstantVelocityTracker
 
 
 FIXTURE = Path(__file__).resolve().parents[1] / "examples/scenario_2d_fixture.json"
@@ -49,3 +52,17 @@ def test_explicit_sample_clock_handles_missing_both_receivers():
     track = estimate_track(sensors, observations, 4, 2, sample_times_s=[0.02, 2.03])
     assert [point["status"] for point in track["points"]] == ["measurement_update", "prediction_only"]
     assert track["points"][1]["position_sigma_m"] > track["points"][0]["position_sigma_m"]
+
+
+def test_uncertain_measurements_have_less_influence_and_gross_outliers_are_rejected():
+    strong = ConstantVelocityTracker((0, 0))
+    weak = ConstantVelocityTracker((0, 0))
+    strong.predict(1)
+    weak.predict(1)
+    assert strong.update((50, 0), np.eye(2) * 100)
+    assert weak.update((50, 0), np.eye(2) * 1_000_000)
+    assert weak.state[0] < 1
+    assert strong.state[0] > 40
+    previous = strong.state.copy()
+    assert not strong.update((5000, 5000), np.eye(2) * 100)
+    assert np.array_equal(strong.state, previous)

@@ -6,13 +6,14 @@ from pathlib import Path
 
 from .evaluation import evaluate_track
 from .pipeline import estimate_track
-from .visualization import save_comparison_png
+from .visualization import save_comparison_png, save_rf_diagnostics_png
 
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="Estimate a 2D track from synthetic RF bearings")
     parser.add_argument("--scenario", type=Path, required=True)
     parser.add_argument("--output", type=Path, required=True)
+    parser.add_argument("--diagnostics", type=Path, help="Optional generated rf_diagnostics.json for the RF trace plot")
     args = parser.parse_args()
     with args.scenario.open(encoding="utf-8") as handle:
         scenario = json.load(handle)
@@ -32,6 +33,9 @@ def main() -> None:
     track_path.write_text(json.dumps(track, indent=2) + "\n", encoding="utf-8")
     metrics_path.write_text(json.dumps(metrics, indent=2) + "\n", encoding="utf-8")
     save_comparison_png(str(plot_path), scenario["sensors"], scenario.get("ground_truth", []), track)
+    if args.diagnostics:
+        frames = json.loads(args.diagnostics.read_text(encoding="utf-8"))
+        save_rf_diagnostics_png(str(args.output / "rf_behavior.png"), frames, scenario["sensors"])
     print(f"Triangulations: {metrics['successful_triangulations']}")
     print(f"Prediction-only frames: {metrics['prediction_only_frames']}")
     print(f"RMSE: {metrics['rmse_m']:.1f} m" if metrics["rmse_m"] is not None else "RMSE: unavailable (no matching truth)")

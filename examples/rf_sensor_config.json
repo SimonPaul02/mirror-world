@@ -1,0 +1,20 @@
+{
+  "seed": 20261018,
+  "origin": { "lat": 49.3754, "lon": 31.1882 },
+  "emitter": {
+    "callsign": "Mock fixed-wing D1",
+    "unknownCallsign": "Unknown 2.4 GHz emitter",
+    "freqMhz": 2437.5,
+    "eirpDbm": 27,
+    "bandwidthMhz": 3
+  },
+  "receivers": [
+    { "uid": "RF1", "callsign": "West array", "x_m": -1500, "y_m": 0, "mastM": 12, "gainDbi": 6, "sigmaFloorDeg": 0.8, "biasDeg": 0.15, "noiseFloorDbm": -104, "detectSnrDb": 6 },
+    { "uid": "RF2", "callsign": "East array", "x_m": 1500, "y_m": 0, "mastM": 12, "gainDbi": 6, "sigmaFloorDeg": 0.8, "biasDeg": -0.15, "noiseFloorDbm": -104, "detectSnrDb": 6 }
+  ],
+  "terrain": {
+    "kind": "synthetic",
+    "base_hae_m": 100,
+    "ridge": { "x_m": 950, "y_m": 1000, "sigma_x_m": 100, "sigma_y_m": 180, "height_m": 220 }
+  }
+}

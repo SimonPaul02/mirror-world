@@ -1,7 +1,29 @@
 """Estimate from receiver poses, bearings, and a sample clock only."""
 
-from .geometry import triangulate_two_bearings
+import math
+
+import numpy as np
+
+from .geometry import bearing_to_unit, triangulate_two_bearings
 from .tracking import ConstantVelocityTracker
+
+
+def _measurement_covariance(left, right, a, b, measured):
+    """Propagate each AoA's cross-track uncertainty through the ray geometry."""
+    normals = []
+    variances = []
+    for sensor, observation in ((left, a), (right, b)):
+        # Legacy fixtures omit uncertainty; assume 1 degree and document that default.
+        sigma = observation.get("bearing_sigma_deg", 1.0)
+        if not math.isfinite(sigma) or sigma < 0:
+            raise ValueError("Bearing uncertainty must be finite and nonnegative")
+        ux, uy = bearing_to_unit(observation["bearing_deg"])
+        normals.append([uy, -ux])
+        distance = math.hypot(measured[0] - sensor["x_m"], measured[1] - sensor["y_m"])
+        variances.append((distance * math.radians(sigma)) ** 2)
+    inverse_normals = np.linalg.solve(np.array(normals), np.eye(2))
+    # A small floor represents unmodeled position error and keeps R positive definite.
+    return inverse_normals @ np.diag(variances) @ inverse_normals.T + np.eye(2) * 10.0**2
 
 
 def estimate_track(
@@ -46,6 +68,8 @@ def estimate_track(
     for timestamp in times:
         reports = paired.get(timestamp, {})
         measured = None
+        measurement_covariance = None
+        reason = "missing_receiver"
         ids = []
         if left["id"] in reports and right["id"] in reports:
             paired_count += 1
@@ -55,18 +79,23 @@ def estimate_track(
                 (right["x_m"], right["y_m"]), b["bearing_deg"],
             )
             ids = [a["id"], b["id"]]
+            reason = "invalid_geometry"
+            if measured is not None:
+                measurement_covariance = _measurement_covariance(left, right, a, b, measured)
         if measured is not None:
             raw_points.append({"timestamp_s": timestamp, "x_m": measured[0], "y_m": measured[1]})
         if tracker is None:
             if measured is None:
                 continue
-            tracker = ConstantVelocityTracker(measured)
+            tracker = ConstantVelocityTracker(measured, measurement_covariance)
             status = "measurement_update"
         else:
             tracker.predict(timestamp - previous_time)
             if measured is not None:
-                tracker.update(measured)
-                status = "measurement_update"
+                accepted = tracker.update(measured, measurement_covariance)
+                status = "measurement_update" if accepted else "prediction_only"
+                if not accepted:
+                    reason = "innovation_gate"
             else:
                 status = "prediction_only"
         previous_time = timestamp
@@ -78,6 +107,7 @@ def estimate_track(
             "position_sigma_m": float((tracker.covariance[0, 0] + tracker.covariance[1, 1]) ** 0.5),
             "status": status,
             "observation_ids_used": ids if status == "measurement_update" else [],
+            **({"prediction_reason": reason} if status == "prediction_only" else {}),
         })
     return {
         "scenario_id": scenario_id,

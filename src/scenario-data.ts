@@ -36,6 +36,7 @@ export interface ScenarioData {
     route: Waypoint[];
     emitter: Emitter;
     requested_duration_s: number;
+    metadata?: Record<string, unknown>;
   };
   world_frame: {
     type: "local_enu";
@@ -49,11 +50,12 @@ export interface ScenarioData {
   sample_period_s: number;
   sample_times_s: number[];
   terrain: { real_terrain_available: boolean; source: string };
-  sensors: Array<{ id: string; type: "rf_aoa"; x_m: number; y_m: number; lat: number; lon: number; mast_m: number }>;
+  sensors: Array<{ id: string; type: "rf_aoa"; x_m: number; y_m: number; lat: number; lon: number; mast_m: number; antenna_hae_m?: number; gain_dbi: number; noise_floor_dbm: number; detection_snr_db: number; bearing_sigma_floor_deg: number; bearing_bias_deg: number }>;
   ground_truth: TruthPoint[];
   observations: RfObservation[];
   associations: Array<{ observation_id: string; source_object_id: string }>;
-  missed_detections: Array<{ timestamp_s: number; sensor_id: string; reason: "below_snr_threshold"; power_dbm: number; snr_db: number; terrain_loss_db: number; terrain_coverage: number }>;
+  missed_detections: Array<{ id: string; timestamp_s: number; sensor_id: string; reason: "below_snr_threshold" | "terrain_unavailable"; power_dbm: number | null; snr_db: number | null; terrain_loss_db: number | null; terrain_coverage: number }>;
+  missed_detection_associations: Array<{ record_id: string; source_object_id: string }>;
 }
 
 /** Approximate local east/north coordinates, with the first receiver as origin. */
@@ -79,10 +81,13 @@ export class ScenarioCapture {
     receivers: ReceiverSite[];
     realTerrainAvailable: boolean;
     terrainSource: string;
+    origin?: { lat: number; lon: number };
+    configurationMetadata?: Record<string, unknown>;
   }) {
     if (args.receivers.length < 1) throw new Error("A scenario needs a receiver");
     const first = args.receivers[0] as ReceiverSite;
-    this.origin = Cartographic.fromDegrees(first.lon, first.lat);
+    const origin = args.origin ?? { lat: first.lat, lon: first.lon };
+    this.origin = Cartographic.fromDegrees(origin.lon, origin.lat);
     this.data = {
       schema_version: 1,
       scenario_id: args.scenarioId,
@@ -92,14 +97,15 @@ export class ScenarioCapture {
         route: args.route,
         emitter: args.emitter,
         requested_duration_s: args.requestedDurationS,
+        metadata: args.configurationMetadata,
       },
       world_frame: {
         type: "local_enu",
         distance_unit: "m",
         time_unit: "s",
         bearing_convention: "clockwise_from_north",
-        origin_lat: first.lat,
-        origin_lon: first.lon,
+        origin_lat: origin.lat,
+        origin_lon: origin.lon,
       },
       duration_s: 0,
       sample_period_s: args.samplePeriodS,
@@ -107,12 +113,13 @@ export class ScenarioCapture {
       terrain: { real_terrain_available: args.realTerrainAvailable, source: args.terrainSource },
       sensors: args.receivers.map((rx) => {
         const [x_m, y_m] = localXY(this.origin, rx.lon, rx.lat);
-        return { id: rx.uid, type: "rf_aoa", x_m, y_m, lat: rx.lat, lon: rx.lon, mast_m: rx.mastM };
+        return { id: rx.uid, type: "rf_aoa", x_m, y_m, lat: rx.lat, lon: rx.lon, mast_m: rx.mastM, gain_dbi: rx.gainDbi, noise_floor_dbm: rx.noiseFloorDbm, detection_snr_db: rx.detectSnrDb, bearing_sigma_floor_deg: rx.sigmaFloorDeg, bearing_bias_deg: rx.biasDeg };
       }),
       ground_truth: [],
       observations: [],
       associations: [],
       missed_detections: [],
+      missed_detection_associations: [],
     };
   }
 
@@ -122,7 +129,9 @@ export class ScenarioCapture {
     aglM: number;
     detections: Detection[];
   }): void {
-    const timestamp_s = Number(args.timestampS.toFixed(3));
+    const timestamp_s = args.timestampS;
+    const previous = this.data.sample_times_s.at(-1);
+    if (!Number.isFinite(timestamp_s) || timestamp_s < 0 || (previous !== undefined && timestamp_s <= previous)) throw new Error("Capture timestamps must increase");
     const lat = CesiumMath.toDegrees(args.drone.latitude);
     const lon = CesiumMath.toDegrees(args.drone.longitude);
     const [x_m, y_m] = localXY(this.origin, lon, lat);
@@ -132,19 +141,24 @@ export class ScenarioCapture {
     this.data.duration_s = Math.max(this.data.duration_s, timestamp_s + this.data.sample_period_s);
 
     for (const detection of args.detections) {
+      const knownTerrain = detection.terrainComplete;
+      const index = String(this.data.ground_truth.length - 1).padStart(6, "0");
       if (!detection.heard) {
+        const id = `miss_${index}_${detection.receiver.uid}`;
         this.data.missed_detections.push({
+          id,
           timestamp_s,
           sensor_id: detection.receiver.uid,
-          reason: "below_snr_threshold",
-          power_dbm: detection.rssiDbm,
-          snr_db: detection.snrDb,
-          terrain_loss_db: detection.terrainLossDb,
+          reason: knownTerrain ? "below_snr_threshold" : "terrain_unavailable",
+          power_dbm: knownTerrain ? detection.rssiDbm : null,
+          snr_db: knownTerrain ? detection.snrDb : null,
+          terrain_loss_db: knownTerrain ? detection.terrainLossDb : null,
           terrain_coverage: detection.terrainCoverage,
         });
+        this.data.missed_detection_associations.push({ record_id: id, source_object_id: object_id });
         continue;
       }
-      const id = `obs_${String(this.data.ground_truth.length - 1).padStart(6, "0")}_${detection.receiver.uid}`;
+      const id = `obs_${index}_${detection.receiver.uid}`;
       this.data.observations.push({
         id,
         timestamp_s,
@@ -167,15 +181,15 @@ export class ScenarioCapture {
 }
 
 /** Checks the record relationships that the challenge explicitly requires. */
-export function validateScenario(data: ScenarioData): string[] {
+export function validateScenario(data: ScenarioData, options: { allowSyntheticTerrain?: boolean; minDurationS?: number } = {}): string[] {
   const errors: string[] = [];
-  if (!data.terrain.real_terrain_available) errors.push("Real terrain was unavailable; this run does not meet the terrain requirement.");
-  if (data.duration_s < 120) errors.push("Capture is shorter than a few minutes; keep the run going before presenting it.");
+  if (!options.allowSyntheticTerrain && !data.terrain.real_terrain_available) errors.push("Real terrain was unavailable; this run does not meet the terrain requirement.");
+  if (data.duration_s < (options.minDurationS ?? 120)) errors.push("Capture is shorter than a few minutes; keep the run going before presenting it.");
   if (data.ground_truth.length === 0) errors.push("No ground truth was captured.");
   if (data.observations.length === 0) errors.push("No radio observations were captured.");
   const incompleteTerrainPaths = [...data.observations, ...data.missed_detections]
-    .filter((item) => item.terrain_coverage < 0.95).length;
-  if (incompleteTerrainPaths) errors.push(`${incompleteTerrainPaths} RF paths lacked terrain samples; their attenuation may be understated.`);
+    .filter((item) => item.terrain_coverage < 1 || ("reason" in item && item.reason === "terrain_unavailable")).length;
+  if (incompleteTerrainPaths) errors.push(`${incompleteTerrainPaths} RF paths lacked terrain samples; no valid sensor observations were generated for those paths.`);
   const sensorIds = new Set(data.sensors.map((sensor) => sensor.id));
   const truthTimes = new Set(data.ground_truth.map((point) => point.timestamp_s));
   if (data.sample_times_s.length !== data.ground_truth.length) errors.push("Sample clock and truth have different frame counts.");
@@ -201,5 +215,16 @@ export function validateScenario(data: ScenarioData): string[] {
   for (const association of data.associations) {
     if (!observationIds.has(association.observation_id)) errors.push(`Association references unknown observation ${association.observation_id}.`);
   }
+  const missingAssociations = new Map(data.missed_detection_associations.map((item) => [item.record_id, item.source_object_id]));
+  if (missingAssociations.size !== data.missed_detections.length) errors.push("Missing-detection diagnostic associations are incomplete or duplicated.");
+  const attempts = new Set(data.observations.map((item) => `${item.timestamp_s}:${item.sensor_id}`));
+  for (const miss of data.missed_detections) {
+    if (missingAssociations.get(miss.id) !== data.configuration.emitter.uid) errors.push(`Missing association for ${miss.id}.`);
+    if (!truthTimes.has(miss.timestamp_s) || !sensorIds.has(miss.sensor_id)) errors.push(`Invalid timestamp or sensor on ${miss.id}.`);
+    const key = `${miss.timestamp_s}:${miss.sensor_id}`;
+    if (attempts.has(key)) errors.push(`Duplicate RF attempt at ${key}.`);
+    attempts.add(key);
+  }
+  if (attempts.size !== data.sample_times_s.length * data.sensors.length) errors.push("Each receiver needs a detection or a missing-detection record on every sample tick.");
   return errors;
 }

@@ -40,6 +40,10 @@ def save_comparison_png(path: str, sensors: list[dict], truth: list[dict], track
     for point in series[1]:
         x, y = screen(point)
         draw.ellipse((x - 2, y - 2, x + 2, y + 2), fill="#f59e0b")
+    for point in track["points"]:
+        if point["status"] == "prediction_only":
+            x, y = screen((point["x_m"], point["y_m"]))
+            draw.ellipse((x - 3, y - 3, x + 3, y + 3), outline="#9333ea")
     for sensor in sensors:
         x, y = screen((sensor["x_m"], sensor["y_m"]))
         draw.rectangle((x - 6, y - 6, x + 6, y + 6), fill="#111827")
@@ -64,10 +68,71 @@ def save_comparison_png(path: str, sensors: list[dict], truth: list[dict], track
         for point in series[1]:
             x, y = detail_screen(point)
             draw.ellipse((x - 2, y - 2, x + 2, y + 2), fill="#f59e0b")
+        for point in track["points"]:
+            if point["status"] == "prediction_only":
+                x, y = detail_screen((point["x_m"], point["y_m"]))
+                draw.ellipse((x - 3, y - 3, x + 3, y + 3), outline="#9333ea")
     for index, (label, color) in enumerate((
         ("Truth", "#15803d"), ("Raw intersection", "#f59e0b"),
-        ("Filtered estimate", "#1d4ed8"), ("RF sites", "#111827"),
+        ("Filtered estimate", "#1d4ed8"), ("RF sites", "#111827"), ("Prediction only", "#9333ea"),
     )):
-        draw.rectangle((margin + index * 195, height - 65, margin + 13 + index * 195, height - 52), fill=color)
-        draw.text((margin + 19 + index * 195, height - 65), label, fill="#111827")
+        draw.rectangle((margin + index * 165, height - 65, margin + 13 + index * 165, height - 52), fill=color)
+        draw.text((margin + 19 + index * 165, height - 65), label, fill="#111827")
+    image.save(path)
+
+
+def save_rf_diagnostics_png(path: str, frames: list[dict], sensors: list[dict]) -> None:
+    """Power, detection thresholds and terrain loss over the common scenario clock."""
+    import math
+
+    image = Image.new("RGB", (1000, 650), "white")
+    draw = ImageDraw.Draw(image)
+    draw.text((80, 22), "RF trace: received power and modeled terrain attenuation", fill="#111827")
+    if not frames:
+        image.save(path)
+        return
+    colors = ["#2563eb", "#dc2626"]
+    times = [frame["timestamp_s"] for frame in frames]
+    first, span = min(times), max(max(times) - min(times), 1)
+    all_readings = [reading for frame in frames for reading in frame["receivers"]]
+    min_power = math.floor(min(reading["power_dbm"] for reading in all_readings) / 10) * 10 - 5
+    max_power = math.ceil(max(reading["power_dbm"] for reading in all_readings) / 10) * 10 + 5
+    max_loss = max(10, math.ceil(max(reading["terrain_loss_db"] for reading in all_readings) / 10) * 10)
+    for panel, field, minimum, maximum, title in [
+        ((80, 75, 950, 285), "power_dbm", min_power, max_power, "Received power (dBm); dashed lines are detection thresholds"),
+        ((80, 355, 950, 565), "terrain_loss_db", 0, max_loss, "Terrain attenuation (dB); higher means more signal lost"),
+    ]:
+        left, top, right, bottom = panel
+
+        def screen(timestamp, value):
+            return round(left + (timestamp - first) / span * (right - left)), round(bottom - (value - minimum) / (maximum - minimum) * (bottom - top))
+
+        draw.text((left, top - 20), title, fill="#111827")
+        draw.rectangle(panel, outline="#9ca3af")
+        for fraction in [0, 0.25, 0.5, 0.75, 1]:
+            value = minimum + fraction * (maximum - minimum)
+            y = screen(first, value)[1]
+            draw.line((left, y, right, y), fill="#e5e7eb")
+            draw.text((22, y - 4), f"{value:.0f}", fill="#374151")
+        for tick in range(math.ceil(first / 10) * 10, math.floor(max(times)) + 1, 10):
+            x = screen(tick, minimum)[0]
+            draw.line((x, top, x, bottom), fill="#e5e7eb")
+            draw.text((x - 4, bottom + 8), str(tick), fill="#374151")
+        for sensor, color in zip(sensors, colors):
+            readings = [(frame["timestamp_s"], next(reading for reading in frame["receivers"] if reading["sensor_id"] == sensor["id"])) for frame in frames]
+            draw.line([screen(timestamp, reading[field]) for timestamp, reading in readings], fill=color, width=2)
+            if field == "power_dbm":
+                threshold = sensor["noise_floor_dbm"] + sensor["detection_snr_db"]
+                y = screen(first, threshold)[1]
+                for x in range(left, right, 12):
+                    draw.line((x, y, min(x + 6, right), y), fill=color)
+                for timestamp, reading in readings:
+                    if not reading["detected"]:
+                        x, y = screen(timestamp, reading[field])
+                        draw.line((x - 3, y - 3, x + 3, y + 3), fill=color)
+                        draw.line((x - 3, y + 3, x + 3, y - 3), fill=color)
+    draw.text((420, 600), "Scenario time (s)", fill="#374151")
+    for index, sensor in enumerate(sensors):
+        draw.text((80 + index * 140, 625), sensor["id"], fill=colors[index])
+    draw.text((370, 625), "Cross marks: missed detections", fill="#374151")
     image.save(path)

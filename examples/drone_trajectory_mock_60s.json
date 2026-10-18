@@ -1,0 +1,431 @@
+{
+  "scenario_id": "mock_ukraine_60s",
+  "description": "Illustrative small fixed-wing UAV, about 30 m/s, gentle curve, 200 m above the synthetic terrain beneath its route. Not an actual flight or real terrain survey.",
+  "start_utc": "2026-11-03T12:10:00Z",
+  "coordinate_frame": "wgs84",
+  "height_reference": "ellipsoid",
+  "duration_s": 60,
+  "sample_period_s": 1,
+  "ground_truth": [
+    {
+      "timestamp_s": 0,
+      "object_id": "D1",
+      "lat": 49.3978778670882,
+      "lon": 31.175801116968206,
+      "hae_m": 300
+    },
+    {
+      "timestamp_s": 1,
+      "object_id": "D1",
+      "lat": 49.39794849664915,
+      "lon": 31.176214395885594,
+      "hae_m": 300
+    },
+    {
+      "timestamp_s": 2,
+      "object_id": "D1",
+      "lat": 49.39801893126081,
+      "lon": 31.17662767603386,
+      "hae_m": 300
+    },
+    {
+      "timestamp_s": 3,
+      "object_id": "D1",
+      "lat": 49.3980889779822,
+      "lon": 31.177040957451805,
+      "hae_m": 300
+    },
+    {
+      "timestamp_s": 4,
+      "object_id": "D1",
+      "lat": 49.39815844493148,
+      "lon": 31.17745424017149,
+      "hae_m": 300
+    },
+    {
+      "timestamp_s": 5,
+      "object_id": "D1",
+      "lat": 49.398227141811894,
+      "lon": 31.177867524218268,
+      "hae_m": 300
+    },
+    {
+      "timestamp_s": 6,
+      "object_id": "D1",
+      "lat": 49.39829488043335,
+      "lon": 31.178280809610627,
+      "hae_m": 300
+    },
+    {
+      "timestamp_s": 7,
+      "object_id": "D1",
+      "lat": 49.39836147522822,
+      "lon": 31.178694096360267,
+      "hae_m": 300
+    },
+    {
+      "timestamp_s": 8,
+      "object_id": "D1",
+      "lat": 49.39842674376001,
+      "lon": 31.17910738447206,
+      "hae_m": 300
+    },
+    {
+      "timestamp_s": 9,
+      "object_id": "D1",
+      "lat": 49.3984905072233,
+      "lon": 31.179520673944143,
+      "hae_m": 300
+    },
+    {
+      "timestamp_s": 10,
+      "object_id": "D1",
+      "lat": 49.39855259093404,
+      "lon": 31.179933964767933,
+      "hae_m": 300
+    },
+    {
+      "timestamp_s": 11,
+      "object_id": "D1",
+      "lat": 49.3986128248081,
+      "lon": 31.180347256928272,
+      "hae_m": 300
+    },
+    {
+      "timestamp_s": 12,
+      "object_id": "D1",
+      "lat": 49.39867104382765,
+      "lon": 31.18076055040353,
+      "hae_m": 300
+    },
+    {
+      "timestamp_s": 13,
+      "object_id": "D1",
+      "lat": 49.39872708849336,
+      "lon": 31.18117384516575,
+      "hae_m": 300
+    },
+    {
+      "timestamp_s": 14,
+      "object_id": "D1",
+      "lat": 49.39878080526162,
+      "lon": 31.1815871411808,
+      "hae_m": 300
+    },
+    {
+      "timestamp_s": 15,
+      "object_id": "D1",
+      "lat": 49.39883204696539,
+      "lon": 31.18200043840861,
+      "hae_m": 300
+    },
+    {
+      "timestamp_s": 16,
+      "object_id": "D1",
+      "lat": 49.39888067321751,
+      "lon": 31.182413736803408,
+      "hae_m": 300
+    },
+    {
+      "timestamp_s": 17,
+      "object_id": "D1",
+      "lat": 49.398926550795615,
+      "lon": 31.182827036313878,
+      "hae_m": 300
+    },
+    {
+      "timestamp_s": 18,
+      "object_id": "D1",
+      "lat": 49.398969554007145,
+      "lon": 31.183240336883493,
+      "hae_m": 300
+    },
+    {
+      "timestamp_s": 19,
+      "object_id": "D1",
+      "lat": 49.39900956503401,
+      "lon": 31.183653638450792,
+      "hae_m": 300
+    },
+    {
+      "timestamp_s": 20,
+      "object_id": "D1",
+      "lat": 49.399046474255336,
+      "lon": 31.184066940949663,
+      "hae_m": 300
+    },
+    {
+      "timestamp_s": 21,
+      "object_id": "D1",
+      "lat": 49.39908018054811,
+      "lon": 31.184480244309675,
+      "hae_m": 300
+    },
+    {
+      "timestamp_s": 22,
+      "object_id": "D1",
+      "lat": 49.39911059156424,
+      "lon": 31.18489354845642,
+      "hae_m": 300
+    },
+    {
+      "timestamp_s": 23,
+      "object_id": "D1",
+      "lat": 49.399137623983734,
+      "lon": 31.18530685331184,
+      "hae_m": 300
+    },
+    {
+      "timestamp_s": 24,
+      "object_id": "D1",
+      "lat": 49.399161203743,
+      "lon": 31.18572015879463,
+      "hae_m": 300
+    },
+    {
+      "timestamp_s": 25,
+      "object_id": "D1",
+      "lat": 49.39918126623794,
+      "lon": 31.186133464820617,
+      "hae_m": 300
+    },
+    {
+      "timestamp_s": 26,
+      "object_id": "D1",
+      "lat": 49.39919775650093,
+      "lon": 31.18654677130311,
+      "hae_m": 300
+    },
+    {
+      "timestamp_s": 27,
+      "object_id": "D1",
+      "lat": 49.399210629351565,
+      "lon": 31.186960078153337,
+      "hae_m": 300
+    },
+    {
+      "timestamp_s": 28,
+      "object_id": "D1",
+      "lat": 49.39921984952046,
+      "lon": 31.187373385280853,
+      "hae_m": 300
+    },
+    {
+      "timestamp_s": 29,
+      "object_id": "D1",
+      "lat": 49.3992253917459,
+      "lon": 31.18778669259392,
+      "hae_m": 300
+    },
+    {
+      "timestamp_s": 30,
+      "object_id": "D1",
+      "lat": 49.39922724084312,
+      "lon": 31.188200000000002,
+      "hae_m": 300
+    },
+    {
+      "timestamp_s": 31,
+      "object_id": "D1",
+      "lat": 49.3992253917459,
+      "lon": 31.188613307406076,
+      "hae_m": 300
+    },
+    {
+      "timestamp_s": 32,
+      "object_id": "D1",
+      "lat": 49.39921984952046,
+      "lon": 31.189026614719154,
+      "hae_m": 300
+    },
+    {
+      "timestamp_s": 33,
+      "object_id": "D1",
+      "lat": 49.39921062935156,
+      "lon": 31.189439921846674,
+      "hae_m": 300
+    },
+    {
+      "timestamp_s": 34,
+      "object_id": "D1",
+      "lat": 49.39919775650093,
+      "lon": 31.189853228696904,
+      "hae_m": 300
+    },
+    {
+      "timestamp_s": 35,
+      "object_id": "D1",
+      "lat": 49.39918126623794,
+      "lon": 31.19026653517939,
+      "hae_m": 300
+    },
+    {
+      "timestamp_s": 36,
+      "object_id": "D1",
+      "lat": 49.39916120374302,
+      "lon": 31.190679841205387,
+      "hae_m": 300
+    },
+    {
+      "timestamp_s": 37,
+      "object_id": "D1",
+      "lat": 49.399137623983734,
+      "lon": 31.191093146688164,
+      "hae_m": 300
+    },
+    {
+      "timestamp_s": 38,
+      "object_id": "D1",
+      "lat": 49.39911059156424,
+      "lon": 31.19150645154358,
+      "hae_m": 300
+    },
+    {
+      "timestamp_s": 39,
+      "object_id": "D1",
+      "lat": 49.39908018054811,
+      "lon": 31.191919755690325,
+      "hae_m": 300
+    },
+    {
+      "timestamp_s": 40,
+      "object_id": "D1",
+      "lat": 49.399046474255336,
+      "lon": 31.19233305905035,
+      "hae_m": 300
+    },
+    {
+      "timestamp_s": 41,
+      "object_id": "D1",
+      "lat": 49.39900956503401,
+      "lon": 31.192746361549208,
+      "hae_m": 300
+    },
+    {
+      "timestamp_s": 42,
+      "object_id": "D1",
+      "lat": 49.398969554007145,
+      "lon": 31.193159663116504,
+      "hae_m": 300
+    },
+    {
+      "timestamp_s": 43,
+      "object_id": "D1",
+      "lat": 49.39892655079561,
+      "lon": 31.193572963686133,
+      "hae_m": 300
+    },
+    {
+      "timestamp_s": 44,
+      "object_id": "D1",
+      "lat": 49.398880673217505,
+      "lon": 31.193986263196596,
+      "hae_m": 300
+    },
+    {
+      "timestamp_s": 45,
+      "object_id": "D1",
+      "lat": 49.39883204696539,
+      "lon": 31.19439956159139,
+      "hae_m": 300
+    },
+    {
+      "timestamp_s": 46,
+      "object_id": "D1",
+      "lat": 49.39878080526162,
+      "lon": 31.194812858819216,
+      "hae_m": 300
+    },
+    {
+      "timestamp_s": 47,
+      "object_id": "D1",
+      "lat": 49.39872708849335,
+      "lon": 31.19522615483426,
+      "hae_m": 300
+    },
+    {
+      "timestamp_s": 48,
+      "object_id": "D1",
+      "lat": 49.39867104382765,
+      "lon": 31.195639449596467,
+      "hae_m": 300
+    },
+    {
+      "timestamp_s": 49,
+      "object_id": "D1",
+      "lat": 49.3986128248081,
+      "lon": 31.196052743071732,
+      "hae_m": 300
+    },
+    {
+      "timestamp_s": 50,
+      "object_id": "D1",
+      "lat": 49.398552590934024,
+      "lon": 31.196466035232067,
+      "hae_m": 300
+    },
+    {
+      "timestamp_s": 51,
+      "object_id": "D1",
+      "lat": 49.39849050722332,
+      "lon": 31.196879326055853,
+      "hae_m": 300
+    },
+    {
+      "timestamp_s": 52,
+      "object_id": "D1",
+      "lat": 49.39842674376001,
+      "lon": 31.197292615527935,
+      "hae_m": 300
+    },
+    {
+      "timestamp_s": 53,
+      "object_id": "D1",
+      "lat": 49.39836147522823,
+      "lon": 31.197705903639743,
+      "hae_m": 300
+    },
+    {
+      "timestamp_s": 54,
+      "object_id": "D1",
+      "lat": 49.39829488043335,
+      "lon": 31.19811919038938,
+      "hae_m": 300
+    },
+    {
+      "timestamp_s": 55,
+      "object_id": "D1",
+      "lat": 49.398227141811894,
+      "lon": 31.198532475781743,
+      "hae_m": 300
+    },
+    {
+      "timestamp_s": 56,
+      "object_id": "D1",
+      "lat": 49.39815844493148,
+      "lon": 31.198945759828508,
+      "hae_m": 300
+    },
+    {
+      "timestamp_s": 57,
+      "object_id": "D1",
+      "lat": 49.39808897798219,
+      "lon": 31.199359042548217,
+      "hae_m": 300
+    },
+    {
+      "timestamp_s": 58,
+      "object_id": "D1",
+      "lat": 49.39801893126079,
+      "lon": 31.19977232396615,
+      "hae_m": 300
+    },
+    {
+      "timestamp_s": 59,
+      "object_id": "D1",
+      "lat": 49.39794849664914,
+      "lon": 31.200185604114424,
+      "hae_m": 300
+    }
+  ]
+}

@@ -131,7 +131,7 @@ async function boot(): Promise<void> {
   const view = new ScenarioView(viewer, scenarioRoute, RECEIVERS);
   const feed = new CotFeed();
   // One seeded generator for the whole scenario: same seed, same sensor data.
-  let signals = new SignalModel(RECEIVERS, EMITTER, sampleTerrain, mulberry32(runSeed));
+  let signals = new SignalModel(RECEIVERS, EMITTER, sampleTerrain, mulberry32(runSeed), { samplePeriodS: reportIntervalS });
   const makeCapture = (): ScenarioCapture => new ScenarioCapture({
     scenarioId: `${SCENARIO_ID}-${routeVariant}-seed-${runSeed}`,
     startUtc: START_ISO,
@@ -184,7 +184,7 @@ async function boot(): Promise<void> {
     aglTrim = 0;
     feed.clear();
     view.clear();
-    signals = new SignalModel(RECEIVERS, EMITTER, sampleTerrain, mulberry32(runSeed));
+    signals = new SignalModel(RECEIVERS, EMITTER, sampleTerrain, mulberry32(runSeed), { samplePeriodS: reportIntervalS });
     capture = makeCapture();
     reportDue = 0;
     sitesPublishedAt = Number.NEGATIVE_INFINITY;
@@ -315,7 +315,7 @@ async function boot(): Promise<void> {
         rx.uid,
         detection.heard
           ? `${detection.rssiDbm.toFixed(1)} dBm · ${(detection.groundRangeM / 1000).toFixed(1)} km`
-          : `masked (−${detection.terrainLossDb.toFixed(0)} dB)`,
+          : detection.terrainComplete ? `below threshold (terrain loss ${detection.terrainLossDb.toFixed(0)} dB)` : "terrain data pending",
       );
     });
 

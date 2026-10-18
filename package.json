@@ -12,7 +12,12 @@
     "build": "tsc --noEmit && vite build",
     "preview": "vite preview",
     "typecheck": "tsc --noEmit",
-    "model:mq9": "node scripts/make-mq9.mjs"
+    "model:mq9": "node scripts/make-mq9.mjs",
+    "mock:trajectory": "node --import ./scripts/register-typescript.mjs scripts/make-mock-trajectory.mjs",
+    "generate:rf": "node --import ./scripts/register-typescript.mjs scripts/generate-rf.mjs",
+    "test:sensors": "node --import ./scripts/register-typescript.mjs tests/sensors.test.mjs",
+    "validate:rf": "node --import ./scripts/register-typescript.mjs scripts/validate-rf.mjs",
+    "demo:rf": "npm run generate:rf && npm run validate:rf && python3 -m rf_fusion.cli --scenario outputs/mock_60s/scenario.json --output outputs/mock_60s --diagnostics outputs/mock_60s/rf_diagnostics.json"
   },
   "dependencies": {
     "cesium": "^1.146.0"
