@@ -8,6 +8,9 @@ import { fromArrayBuffer } from 'geotiff';
 import { LocalTerrainProvider } from './local-terrain';
 import { sampleGrid, replayState, type Grid, type TruthState } from './replay-math';
 import { MQ9_MODEL } from './models';
+import { generateRfScenario, type SensorGeneratorConfig } from './sensor-generator';
+import { ScenarioView } from './scenario-view';
+import odesaRfConfig from '../examples/rf_sensor_odesa.json';
 
 const el = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
 const asset = (name: string) => `${import.meta.env.BASE_URL}trajectory/${name}`;
@@ -17,11 +20,14 @@ async function get(name: string) {
   return response;
 }
 async function main() {
-  const [manifest, defaults, geoid, demBytes, shadeBytes] = await Promise.all([
+  const [manifest, defaults, geoidBytes, demBytes, shadeBytes] = await Promise.all([
     get('manifest.json').then(r => r.json()), get('defaults.json').then(r => r.json()),
-    get('geoid-egm2008.json').then(r => r.json()) as Promise<Grid>,
+    get('geoid-egm2008.json').then(r => r.arrayBuffer()),
     get('elevation.tif').then(r => r.arrayBuffer()), get('hillshade.tif').then(r => r.arrayBuffer())
   ]);
+  const hash = async (bytes: ArrayBuffer) => Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256',bytes)),byte=>byte.toString(16).padStart(2,'0')).join('');
+  if (await hash(demBytes) !== manifest.assets.surface_elevation.sha256 || await hash(geoidBytes) !== manifest.assets.geoid_undulation.sha256) throw new Error('RF terrain/geoid checksum mismatch');
+  const geoid = JSON.parse(new TextDecoder().decode(geoidBytes)) as Grid;
   const dem = await (await fromArrayBuffer(demBytes)).getImage();
   const surface: Grid = { width: dem.getWidth(), height: dem.getHeight(),
     west: dem.getOrigin()[0]!, north: dem.getOrigin()[1]!, dx: dem.getResolution()[0]!, dy: -dem.getResolution()[1]!,
@@ -74,6 +80,59 @@ async function main() {
   viewer.clock.currentTime = start.clone(); viewer.clock.clockRange = ClockRange.CLAMPED;
   viewer.clock.multiplier = 20;
   let active = false;
+  let rfData: ReturnType<typeof generateRfScenario> | undefined;
+  let rfView: ScenarioView | undefined;
+  let rfTrajectory: unknown;
+  let rfIndex = -1;
+  let rfUrls: string[] = [];
+  const rfConfig = odesaRfConfig as SensorGeneratorConfig;
+  for (const [index, receiver] of rfConfig.receivers.entries()) {
+    el<HTMLInputElement>(`rf${index+1}-lat`).value=String(receiver.lat);
+    el<HTMLInputElement>(`rf${index+1}-lon`).value=String(receiver.lon);
+  }
+  function clearRf() {
+    rfView?.destroy(); rfView=undefined; rfData=undefined; rfIndex=-1;
+    for (const url of rfUrls) URL.revokeObjectURL(url);
+    rfUrls=[];
+    for (const id of ['download-rf','download-rf-cot']) {
+      el<HTMLAnchorElement>(id).removeAttribute('href'); el(id).setAttribute('aria-disabled','true');
+    }
+    el('rf-current').textContent='';
+  }
+  function simulateRf() {
+    clearRf();
+    if (!rfTrajectory) return;
+    const config=structuredClone(rfConfig);
+    for (const [index, receiver] of config.receivers.entries()) {
+      receiver.lat=el<HTMLInputElement>(`rf${index+1}-lat`).valueAsNumber;
+      receiver.lon=el<HTMLInputElement>(`rf${index+1}-lon`).valueAsNumber;
+    }
+    try {
+      rfData=generateRfScenario(rfTrajectory,config,{
+        real:true,source:manifest.name+'; DSM + EGM2008 geoid',
+        provenance:{elevation_sha256:manifest.assets.surface_elevation.sha256,geoid_sha256:manifest.assets.geoid_undulation.sha256},
+        sample:point=>{
+          try {
+            const lon=CMath.toDegrees(point.longitude),lat=CMath.toDegrees(point.latitude);
+            return sampleGrid(surface,lon,lat)+sampleGrid(geoid,lon,lat);
+          } catch { return undefined; }
+        },
+      });
+      rfView=new ScenarioView(viewer,[],rfData.replayFrames[0]!.detections.map(detection=>detection.receiver));
+      const report=rfData.report;
+      el('rf-status').textContent=`${report.observations} detections · ${report.missed_detections} misses · ${report.successful_bearing_crossings}/${report.sample_count} fixes. Baseline ${(report.receiver_baseline_m/1000).toFixed(1)} km.`;
+      for (const [id,content,type] of [
+        ['download-rf',JSON.stringify(rfData.scenario,null,2)+'\n','application/json'],
+        ['download-rf-cot',rfData.cot,'application/xml'],
+      ]) {
+        const url=URL.createObjectURL(new Blob([content!],{type})); rfUrls.push(url);
+        el<HTMLAnchorElement>(id!).href=url;el(id!).removeAttribute('aria-disabled');
+      }
+    } catch (error) {
+      clearRf(); el('rf-status').textContent=`RF generation rejected: ${(error as Error).message}`;
+    }
+  }
+  el('apply-rf').onclick=simulateRf;
   const at = (time: JulianDate) => replayState(states, JulianDate.secondsDifference(time,start));
   const xyz = (state: TruthState, ground=false) => Cartesian3.fromDegrees(state.longitude_deg,state.latitude_deg,
     (ground ? sampleGrid(surface,state.longitude_deg,state.latitude_deg) : state.altitude_egm2008_m) +
@@ -132,6 +191,16 @@ async function main() {
   viewer.clock.onTick.addEventListener(()=>{
     if (!active) return;
     const state=at(viewer.clock.currentTime);
+    if (rfData && rfView) {
+      const index=Math.min(rfData.replayFrames.length-1,Math.max(0,Math.floor(state.elapsed_s/rfData.scenario.sample_period_s)));
+      if (index !== rfIndex) {
+        const frame=rfData.replayFrames[index]!;
+        const truth=rfData.scenario.ground_truth[index]!;
+        rfView.setReports(frame.detections,frame.fix,Cartesian3.fromDegrees(truth.lon,truth.lat,truth.hae_m));
+        el('rf-current').textContent=`t=${frame.timestamp_s.toFixed(1)} s · ${frame.detections.map(detection=>`${detection.receiver.uid}: ${detection.rssiDbm.toFixed(1)} dBm ${detection.heard?'heard':'missed'}`).join(' · ')} · ${frame.fix?'FIX':'NO FIX'}`;
+        rfIndex=index;
+      }
+    }
     if(state.elapsed_s>=duration) viewer.clock.shouldAnimate=false;
     play.textContent=viewer.clock.shouldAnimate?'Pause':'Play';timeline.value=String(state.elapsed_s);
     el('elapsed').textContent=`${clockText(state.elapsed_s)} / ${clockText(duration)}`;
@@ -172,6 +241,8 @@ async function main() {
     el<HTMLInputElement>('input-height').min=String(i.validation.minimum_surface_clearance_m);
   }
   function clearRun() {
+    clearRf();rfTrajectory=undefined;el<HTMLButtonElement>('apply-rf').disabled=true;
+    el('rf-status').textContent='Generate a trajectory to simulate RF reception.';
     active=false; viewer.clock.shouldAnimate=false; viewer.trackedEntity=undefined;
     follow.setAttribute('aria-pressed','false'); follow.disabled=true;
     play.disabled=true; play.textContent='Play'; timeline.disabled=true; timeline.value='0';
@@ -257,12 +328,15 @@ async function main() {
       download.href=downloadUrl; download.removeAttribute('aria-disabled');
       receiverUrl=URL.createObjectURL(new Blob([JSON.stringify(data.receiverOutput,null,2)+'\n'],{type:'application/json'}));
       receiverDownload.href=receiverUrl; receiverDownload.removeAttribute('aria-disabled');
+      rfTrajectory={...data.receiverOutput,start_utc:generated.resolved_input.simulation.start_time,duration_s:generated.resolved_input.simulation.duration_s};
+      el<HTMLButtonElement>('apply-rf').disabled=false;
+      simulateRf();
       el('run-info').textContent=`${generated.trajectory_truth.length} exported states + endpoint · Seed ${generated.resolved_input.simulation.seed}. Minimum checked clearance ${generated.validation.minimum_surface_clearance_m.toFixed(1)} m. Playback interpolates between truth samples.`;
       busy(false); status.dataset.state='ready'; status.textContent='Trajectory ready. Press Play or scrub the timeline.';
     };
     worker.postMessage({id:++requestId,input,scenarioId:el<HTMLInputElement>('input-scenario').value.trim(),assetsBase:new URL(asset(''),location.href).href});
   };
-  window.addEventListener('pagehide',()=>{worker?.terminate();if(downloadUrl) URL.revokeObjectURL(downloadUrl);if(receiverUrl) URL.revokeObjectURL(receiverUrl);});
+  window.addEventListener('pagehide',()=>{worker?.terminate();clearRf();if(downloadUrl) URL.revokeObjectURL(downloadUrl);if(receiverUrl) URL.revokeObjectURL(receiverUrl);});
   overview(); el('loading').remove();
 }
 main().catch(error=>{console.error(error);el('loading').textContent=`Unable to load replay: ${error.message}. Run npm run dev to prepare local assets.`;});

@@ -3,6 +3,24 @@
 The Odesa trajectory generator is at `/`; the original RF simulation and its
 Scenario JSON export are at `/scenario.html`.
 
+## Validate RF against the merged Odesa trajectory
+
+```
+npm run demo:odesa-rf
+```
+
+This runs the team's five-minute trajectory engine, converts its EGM2008 altitude using the matching geoid, and feeds the actual 300 sampled positions to the RF generator. RF propagation samples the original checked Copernicus DSM and geoid directly; no streamed viewer tiles or synthetic ridge are used. Because the DSM already includes buildings/vegetation, this configuration adds no extra blanket clutter height. Terrain paths are sampled at about 30 m spacing.
+
+`examples/rf_sensor_odesa.json` defines two illustrative sites at `(lat 46.48, lon 30.60)` and `(lat 46.40, lon 30.61)`, each with a 12 m mast. They are about 8.9 km apart and yield crossing angles of about 41–87 degrees on the default route. These are scenario placements, not surveyed real RF installations. Change the coordinates/settings to test another layout.
+
+The default run gives 600 detections and 300 bearing fixes. Its high flight path clears the low-relief terrain: no terrain dropout is fabricated. With the current heuristic RF noise assumptions, raw position RMSE is about 628 m and filtered RMSE about 293 m. These are simulated errors, not measured hardware accuracy.
+
+`outputs/odesa/` contains the full RF scenario and answer keys, original/source trajectory JSON, `sensor_trace.cot`, a CoT record-to-object answer key, raw fixes, the estimated track, metrics, an RF behavior plot, a trajectory comparison plot, and `validation.json`. The final validation cross-checks JSON versus XML values, exact timestamps, observation IDs, answer keys, and tracker measurement provenance. Each detected receiver reading has a CoT event; aggregate fixes carry their contributing signals. Fixed receiver sites remain valid through the capture. The original UTC start is preserved.
+
+To see and position receivers on the same flight, open `http://localhost:3000/`, click **Generate trajectory**, and use **RF RECEIVERS** to edit the sites and **Apply receiver sites**. Green marks sites, yellow lines show measured bearings, and red marks the position fix/uncertainty. Scrubbing the timeline replays the corresponding RF observations. Download RF JSON or TAK XML for the current trajectory and receiver settings. The viewer displays instantaneous fixes; the independent Kalman track remains in the CLI report.
+
+`npm run test:odesa-rf` checks the actual producer contract, shared height datum, complete real-terrain coverage, TAK trace identities/timestamps, and receiver geometry. A deliberately near-coincident baseline is rejected for unstable geometry. The controlled synthetic-ridge tests remain separate and demonstrate obstruction/dropout behavior that the default high-altitude Odesa route does not exhibit.
+
 ## Run the one-minute mock now
 
 Use Node 22.18+ and the Python dependencies below. The pulled terrain tests import TypeScript directly and need a recent Node runtime. After `npm ci`:
@@ -46,7 +64,7 @@ http://localhost:3000/scenario.html?seed=42&route=full&duration_s=180&sample_s=2
 
 The JSON includes receiver positions, the shared sample clock, drone truth, RF observations, missed-detection diagnostics, and an `observation_id` → `source_object_id` answer key. Missing-detection diagnostics have their own record-to-object answer key. `bearing_deg` is clockwise from the scenario origin's North; `sensor_bearing_deg` preserves the receiver's original local true-north azimuth. The app's local coordinates are metres east/north of RF1. Unknown terrain produces missing-data diagnostics rather than valid detections. The app shows export validation warnings for short captures, missing terrain, and broken record relationships.
 
-The live Cesium viewer currently flies the built-in Donbas route. The separate one-minute mock above produces data and plots; it is not yet connected to the live viewer.
+The separate Donbas viewer at `/scenario.html` still flies its built-in route. The main Odesa viewer at `/` now uses the merged trajectory with the RF overlay described above. The one-minute mock remains a separate reproducible development example.
 
 The browser must actually load real terrain for a challenge-ready capture. The export says whether the provider was real and how much of each RF path had sampled terrain. If tiles were absent, attenuation is approximate and the app warns about it. The scenario's current route/terrain integration is a working starting point for Ard's trajectory and Simone's terrain choices.
 

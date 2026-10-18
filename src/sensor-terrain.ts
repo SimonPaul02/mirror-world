@@ -22,7 +22,15 @@ export interface TerrainGrid {
   heights_hae_m: number[][];
 }
 
-export type SensorTerrain = SyntheticTerrain | TerrainGrid;
+/** The raster lives outside the JSON config; a verified sampler is injected. */
+export interface ReferencedTerrain {
+  kind: "manifest";
+  manifest_path: string;
+  source: string;
+  height_reference: "ellipsoid";
+}
+
+export type SensorTerrain = SyntheticTerrain | TerrainGrid | ReferencedTerrain;
 
 /** Express a receiver's local true-north azimuth in the shared origin ENU frame. */
 export function bearingInOriginFrame(origin: LocalOrigin, receiver: LocalOrigin, bearingDeg: number): number {
@@ -49,6 +57,7 @@ export function fromLocalXY(origin: LocalOrigin, x: number, y: number, haeM = 0)
 }
 
 export function makeSensorTerrainSampler(terrain: SensorTerrain, origin: LocalOrigin): (point: Cartographic) => number | undefined {
+  if (terrain.kind === "manifest") throw new Error("A manifest terrain needs the verified elevation/geoid sampler");
   if (terrain.kind === "synthetic") {
     if (!Number.isFinite(terrain.base_hae_m)) throw new Error("Invalid synthetic terrain height");
     const ridge = terrain.ridge;

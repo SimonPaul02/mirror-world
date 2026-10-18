@@ -66,13 +66,17 @@ export class ScenarioView {
   private fixLabel = "";
   private readonly missLine: Cartesian3[] = [new Cartesian3(), new Cartesian3()];
   private missVisible = false;
+  private readonly siteIds: string[];
+  private readonly routeIds: string[];
 
   constructor(
     private readonly viewer: Viewer,
     route: Waypoint[],
     receivers: ReceiverSite[],
   ) {
-    this.drawRoute(route);
+    this.siteIds = receivers.flatMap((receiver) => [`rx-${receiver.uid}`, `rx-mast-${receiver.uid}`]);
+    this.routeIds = route.length ? ["route-plan", ...route.map((point) => `wp-${point.name}`)] : [];
+    if (route.length) this.drawRoute(route);
     for (const receiver of receivers) this.drawReceiver(receiver);
 
     this.fixRingEntity = viewer.entities.add({
@@ -85,6 +89,7 @@ export class ScenarioView {
         outline: true,
         outlineColor: ESTIMATE.withAlpha(0.85),
         outlineWidth: 2,
+        height: 0,
         heightReference: HeightReference.CLAMP_TO_GROUND,
       },
       show: false,
@@ -141,7 +146,7 @@ export class ScenarioView {
         detection.receiver.lat,
         detection.antennaHae,
       );
-      const reach = fix ? detection.slantRangeM * 1.08 : LOB_FALLBACK_M;
+      const reach = fix ? Cartesian3.distance(origin, Cartesian3.fromDegrees(fix.lon, fix.lat, detection.antennaHae)) * 1.08 : LOB_FALLBACK_M;
       Cartesian3.clone(origin, lob.positions[0] as Cartesian3);
       Cartesian3.clone(
         project(origin, detection.measuredBearingDeg, reach),
@@ -178,6 +183,15 @@ export class ScenarioView {
     this.fixRingEntity.show = false;
     this.missEntity.show = false;
     this.missVisible = false;
+  }
+
+  /** Dispose replay overlays before replacing the trajectory or receiver sites. */
+  destroy(): void {
+    for (const lob of this.lobs.values()) this.viewer.entities.remove(lob.entity);
+    this.viewer.entities.remove(this.fixEntity);
+    this.viewer.entities.remove(this.fixRingEntity);
+    this.viewer.entities.remove(this.missEntity);
+    for (const id of [...this.siteIds, ...this.routeIds]) this.viewer.entities.removeById(id);
   }
 
   private drawRoute(route: Waypoint[]): void {
@@ -265,6 +279,8 @@ export class ScenarioView {
       polyline: {
         positions: new CallbackProperty(() => positions, false),
         width: 1.6,
+        // Bearings are a horizontal map overlay; avoid hiding them inside relief.
+        clampToGround: true,
         material: BEARING.withAlpha(0.85),
       },
       show: false,

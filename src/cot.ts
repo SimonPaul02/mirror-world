@@ -53,7 +53,7 @@ const esc = (value: string): string =>
     .replace(/>/g, "&gt;")
     .replace(/"/g, "&quot;");
 
-const iso = (date: Date): string => `${date.toISOString().slice(0, 19)}Z`;
+const iso = (date: Date): string => date.toISOString();
 const deg = (value: number): string => value.toFixed(6);
 const metres = (value: number): string => value.toFixed(1);
 const dbm = (value: number): string => value.toFixed(1);
@@ -97,7 +97,7 @@ export function receiverEvent(
       `    <__group name="Cyan" role="Team Member"/>`,
       `    <remarks>2.4 GHz direction-finding array, mast ${receiver.mastM} m AGL, ` +
         `${receiver.gainDbi} dBi, noise floor ${receiver.noiseFloorDbm} dBm</remarks>`,
-      `    <_mirrorworld object="${receiver.uid}" kind="sensor-site" truth="1"/>`,
+      `    <_mirrorworld object="${esc(receiver.uid)}" kind="sensor-site" truth="1"/>`,
     ].join("\n"),
     channel: "sensor",
     object: receiver.uid,
@@ -116,13 +116,14 @@ export function bearingEvent(
   emitter: Emitter,
   sequence: number,
   time: Date,
+  observationId?: string,
 ): CotRecord {
   const { receiver } = detection;
   const id = String(sequence).padStart(6, "0");
   // The wedge is drawn at ±2σ, so its width is the measurement's honesty.
   const fov = Math.min(detection.sigmaDeg * 4, 120);
   return {
-    uid: `${receiver.uid}.lob.${id}`,
+    uid: observationId ?? `${receiver.uid}.lob.${id}`,
     type: "b-m-p-s-p-i",
     how: "m-r",
     time,
@@ -142,11 +143,11 @@ export function bearingEvent(
       `    <remarks>Bearing only, no range. ${emitter.freqMhz} MHz at ` +
         `${dbm(detection.rssiDbm)} dBm, SNR ${detection.snrDb.toFixed(1)} dB, ` +
         `sigma ${detection.sigmaDeg.toFixed(1)} deg</remarks>`,
-      `    <__signal sensor="${receiver.uid}" freq_mhz="${emitter.freqMhz}" ` +
+      `    <__signal sensor="${esc(receiver.uid)}" freq_mhz="${emitter.freqMhz}" ` +
         `power_dbm="${dbm(detection.rssiDbm)}" bearing_deg="${detection.measuredBearingDeg.toFixed(1)}" ` +
         `snr_db="${detection.snrDb.toFixed(1)}" sigma_deg="${detection.sigmaDeg.toFixed(1)}" ` +
         `terrain_loss_db="${detection.terrainLossDb.toFixed(1)}"/>`,
-      `    <_mirrorworld object="${emitter.uid}" kind="line-of-bearing" sensor="${receiver.uid}" truth="0"/>`,
+      `    <_mirrorworld object="${esc(emitter.uid)}" kind="line-of-bearing" sensor="${esc(receiver.uid)}" truth="0"/>`,
     ].join("\n"),
     channel: "sensor",
     object: emitter.uid,
@@ -166,7 +167,7 @@ export function fixEvent(
   const heard = detections.filter((d) => d.heard && fix.contributors.includes(d.receiver.uid));
   const signals = heard.map(
     (d) =>
-      `    <__signal sensor="${d.receiver.uid}" freq_mhz="${emitter.freqMhz}" ` +
+      `    <__signal sensor="${esc(d.receiver.uid)}" freq_mhz="${emitter.freqMhz}" ` +
       `power_dbm="${dbm(d.rssiDbm)}" bearing_deg="${d.measuredBearingDeg.toFixed(1)}" ` +
       `snr_db="${d.snrDb.toFixed(1)}" sigma_deg="${d.sigmaDeg.toFixed(1)}"/>`,
   );
@@ -185,13 +186,13 @@ export function fixEvent(
     point: { lat: fix.lat, lon: fix.lon, hae: fix.haeM, ce: fix.ceM, le: fix.leM },
     detail: [
       `    <contact callsign="${esc(emitter.unknownCallsign)}"/>`,
-      `    <remarks>Video link heard by ${fix.contributors.join(" and ")}, ` +
+      `    <remarks>Video link heard by ${esc(fix.contributors.join(" and "))}, ` +
         `position from crossed bearings at ${fix.crossAngleDeg.toFixed(0)} deg</remarks>`,
       ...signals,
       ...track,
       `    <precisionlocation geopointsrc="DF" altsrc="DF"/>`,
-      `    <_mirrorworld object="${emitter.uid}" kind="crossed-bearing-fix" ` +
-        `sensors="${fix.contributors.join(",")}" truth="0"/>`,
+      `    <_mirrorworld object="${esc(emitter.uid)}" kind="crossed-bearing-fix" ` +
+        `sensors="${esc(fix.contributors.join(","))}" truth="0"/>`,
     ].join("\n"),
     channel: "sensor",
     object: emitter.uid,
@@ -222,7 +223,7 @@ export function truthEvent(
       `    <contact callsign="${esc(emitter.callsign)}"/>`,
       `    <track course="${courseDeg.toFixed(1)}" speed="${speedMs.toFixed(1)}"/>`,
       `    <remarks>GROUND TRUTH, not sensor derived. ${Math.round(aglM)} m above ground on leg ${esc(leg)}</remarks>`,
-      `    <_mirrorworld object="${emitter.uid}" kind="truth" agl_m="${Math.round(aglM)}" leg="${esc(leg)}"/>`,
+      `    <_mirrorworld object="${esc(emitter.uid)}" kind="truth" agl_m="${Math.round(aglM)}" leg="${esc(leg)}"/>`,
     ].join("\n"),
     channel: "truth",
     object: emitter.uid,

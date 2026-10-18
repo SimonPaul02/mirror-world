@@ -21,7 +21,10 @@
     "mock:trajectory": "node --import ./scripts/register-typescript.mjs scripts/make-mock-trajectory.mjs",
     "generate:rf": "node --import ./scripts/register-typescript.mjs scripts/generate-rf.mjs",
     "test:sensors": "node --import ./scripts/register-typescript.mjs tests/sensors.test.mjs",
+    "test:odesa-rf": "node --import ./scripts/register-typescript.mjs tests/odesa-rf.test.mjs",
     "validate:rf": "node --import ./scripts/register-typescript.mjs scripts/validate-rf.mjs",
+    "generate:odesa-rf": "node --import ./scripts/register-typescript.mjs scripts/odesa-rf.mjs",
+    "demo:odesa-rf": "npm run generate:odesa-rf && python3 -m rf_fusion.cli --scenario outputs/odesa/scenario.json --output outputs/odesa --diagnostics outputs/odesa/rf_diagnostics.json && python3 -m rf_fusion.validate_export outputs/odesa",
     "demo:rf": "npm run generate:rf && npm run validate:rf && python3 -m rf_fusion.cli --scenario outputs/mock_60s/scenario.json --output outputs/mock_60s --diagnostics outputs/mock_60s/rf_diagnostics.json"
   },
   "dependencies": {

@@ -21,7 +21,7 @@ const EARTH_R = 6_371_008;
  * the rays are straight.
  */
 const K_FACTOR = 4 / 3;
-/** Points sampled along each path when looking for an obstruction. */
+/** Minimum number of intervals sampled along each terrain profile. */
 const PATH_SAMPLES = 40;
 /**
  * Height added to the bare terrain for trees, hedgerows and buildings. The
@@ -35,8 +35,8 @@ const FADE_CORRELATION_S = 10;
 const FADE_SIGMA_DB = 2.6;
 /**
  * Bearing accuracy of the arrays against SNR: σ ≈ K / √SNR, on top of each
- * array's calibration floor. 25° gives ~2.5° at 20 dB SNR, which is about what
- * a well-sited eight-element interferometer manages.
+ * array's calibration floor. The coefficient 25° gives ~2.5° at 20 dB SNR.
+ * This is a simulation heuristic, not a hardware calibration.
  */
 const DF_SIGMA_K_DEG = 25;
 
@@ -103,7 +103,7 @@ export function fsplDb(distanceM: number, freqMhz: number): number {
 /**
  * Worst Fresnel obstruction along a path, expressed as diffraction loss.
  *
- * The path is walked in `PATH_SAMPLES` steps; at each one the terrain height is
+ * The path is walked at the configured spacing (at least 40 intervals); terrain is
  * compared with the straight ray, after the ray has been dropped by the
  * effective-earth bulge. The deepest intrusion into the first Fresnel zone sets
  * the loss, which is the standard single-edge approximation — real multi-edge
@@ -116,6 +116,8 @@ function terrainLossDb(
   freqMhz: number,
   sampleTerrain: TerrainSampler,
   scratch: Cartographic,
+  clutterM: number,
+  sampleSpacingM: number,
 ): { lossDb: number; coverage: number } {
   const total = geodesic.surfaceDistance;
   if (total < 50) return { lossDb: 0, coverage: 1 };
@@ -123,9 +125,10 @@ function terrainLossDb(
   const lambda = C / (freqMhz * 1e6);
   let worstV = Number.NEGATIVE_INFINITY;
   let knownSamples = 0;
+  const sampleCount = Math.min(4096, Math.max(PATH_SAMPLES, Math.ceil(total / sampleSpacingM)));
 
-  for (let i = 1; i < PATH_SAMPLES; i += 1) {
-    const t = i / PATH_SAMPLES;
+  for (let i = 1; i < sampleCount; i += 1) {
+    const t = i / sampleCount;
     const point = geodesic.interpolateUsingFraction(t, scratch);
     const ground = sampleTerrain(point);
     if (ground === undefined) continue;
@@ -135,7 +138,7 @@ function terrainLossDb(
     const d2 = total - d1;
     // Straight ray between the antennas, less the earth's bulge under it.
     const ray = rxHae + (txHae - rxHae) * t - (d1 * d2) / (2 * K_FACTOR * EARTH_R);
-    const intrusion = ground + CLUTTER_M - ray;
+    const intrusion = ground + clutterM - ray;
     const fresnel = Math.sqrt((lambda * d1 * d2) / total);
     const v = (intrusion * Math.SQRT2) / fresnel;
     if (v > worstV) worstV = v;
@@ -143,7 +146,7 @@ function terrainLossDb(
 
   return {
     lossDb: Number.isFinite(worstV) ? knifeEdgeLossDb(worstV) : 0,
-    coverage: knownSamples / (PATH_SAMPLES - 1),
+    coverage: knownSamples / (sampleCount - 1),
   };
 }
 
@@ -164,7 +167,7 @@ export class SignalModel {
     private readonly emitter: Emitter,
     private readonly sampleTerrain: TerrainSampler,
     private readonly random: Random,
-    private readonly options: { samplePeriodS?: number; shadowingSigmaDb?: number; bearingNoiseScale?: number } = {},
+    private readonly options: { samplePeriodS?: number; shadowingSigmaDb?: number; bearingNoiseScale?: number; clutterM?: number; terrainSampleSpacingM?: number } = {},
   ) {
     for (const rx of receivers) this.fade.set(rx.uid, 0);
   }
@@ -200,6 +203,8 @@ export class SignalModel {
       this.emitter.freqMhz,
       this.sampleTerrain,
       this.pathScratch,
+      this.options.clutterM ?? CLUTTER_M,
+      this.options.terrainSampleSpacingM ?? 100,
     );
 
     // Shadowing drifts rather than jumps: a first-order filter on white noise.
@@ -254,9 +259,8 @@ const cross2 = (ax: number, ay: number, bx: number, by: number): number => ax * 
  * Crosses the bearings from two arrays into a position.
  *
  * The arithmetic runs in a local east-north plane pinned to the first array.
- * Over the tens of kilometres this scenario spans, the tangent plane differs
- * from the ellipsoid by centimetres horizontally — far inside the bearing error
- * the fix carries anyway.
+ * Both receiver positions and their local north directions are transformed into
+ * this shared frame before intersecting the measured rays.
  *
  * Returns undefined when fewer than two arrays heard the signal, when the
  * bearings cross too shallowly to mean anything, or when the crossing falls

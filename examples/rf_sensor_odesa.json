@@ -1,0 +1,11 @@
+{
+  "seed": 20261018,
+  "origin": { "lat": 46.44, "lon": 30.66 },
+  "emitter": { "callsign": "Team trajectory aircraft", "unknownCallsign": "Unknown 2.4 GHz emitter", "freqMhz": 2437.5, "eirpDbm": 27, "bandwidthMhz": 3 },
+  "receivers": [
+    { "uid": "RF1", "callsign": "Odesa north-west array", "lat": 46.48, "lon": 30.60, "mastM": 12, "gainDbi": 10, "sigmaFloorDeg": 0.8, "biasDeg": 0.15, "noiseFloorDbm": -104, "detectSnrDb": 6 },
+    { "uid": "RF2", "callsign": "Odesa south-west array", "lat": 46.40, "lon": 30.61, "mastM": 12, "gainDbi": 10, "sigmaFloorDeg": 0.8, "biasDeg": -0.15, "noiseFloorDbm": -104, "detectSnrDb": 6 }
+  ],
+  "propagation": { "clutterM": 0, "terrainSampleSpacingM": 30 },
+  "terrain": { "kind": "manifest", "manifest_path": "terrain/odesa/manifest.json", "source": "Odesa Copernicus GLO-30 DSM with EGM2008 geoid", "height_reference": "ellipsoid" }
+}

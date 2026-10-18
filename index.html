@@ -44,6 +44,20 @@
     <div class="divider"></div><div class="section-label">04 / RUN CHECK</div><p id="run-info">Generate a trajectory to inspect its validation results.</p>
     <a id="download-receiver" class="download" aria-disabled="true" download="ground_truth.json">Download receiver ground truth ↗</a>
     <a id="download-truth" class="download" aria-disabled="true" download="trajectory_truth.json">Download full trajectory JSON ↗</a>
+    <div class="divider"></div><div class="section-label">05 / RF RECEIVERS</div>
+    <p class="muted">Two directional arrays · 2.4375 GHz · 12 m masts. Coordinates are editable; apply them to recalculate readings for this flight.</p>
+    <div class="form-grid">
+      <label class="field">RF1 latitude<input id="rf1-lat" type="number" step="0.001"/></label>
+      <label class="field">RF1 longitude<input id="rf1-lon" type="number" step="0.001"/></label>
+      <label class="field">RF2 latitude<input id="rf2-lat" type="number" step="0.001"/></label>
+      <label class="field">RF2 longitude<input id="rf2-lon" type="number" step="0.001"/></label>
+    </div>
+    <button id="apply-rf" type="button" disabled>Apply receiver sites</button>
+    <p id="rf-status" role="status">Generate a trajectory to simulate RF reception.</p>
+    <p id="rf-current" class="muted"></p>
+    <p class="footnote">Green: receivers · Yellow: bearings · Red: position fix and uncertainty. The synthetic RF errors are model assumptions.</p>
+    <a id="download-rf" class="download" aria-disabled="true" download="rf_scenario.json">Download RF scenario JSON ↗</a>
+    <a id="download-rf-cot" class="download" aria-disabled="true" download="sensor_trace.cot">Download TAK signal trace ↗</a>
     <p class="footnote">Heights converted with EGM2008 geoid for globe display. Surface relief is 1×. Outside the amber boundary: flat globe, no local elevation data.</p>
   </aside>
   <div class="map-note">Drag to orbit · Scroll to zoom · Ctrl + drag to tilt</div>

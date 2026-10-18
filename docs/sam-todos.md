@@ -2,9 +2,9 @@
 
 Working agreement: keep this checklist current and automatically commit completed, verified changes as we work together.
 
-Latest verification: app production build passed; 10 sensor tests and five Python tests passed. `npm run demo:rf` now imports a one-minute mock of Arda's flight, generates 85 detections and 35 missing-detection diagnostics, and writes the complete scenario, validation reports, and two plots. RF1 detects all 60 samples; a synthetic ridge blocks RF2 at seconds 11–45. Tracking RMSE is 73.6 m across all 60 frames, including 35 prediction-only frames. A live browser capture with real terrain is still pending.
+Latest real-input result: `npm run demo:odesa-rf` uses the merged team's 300-second Odesa trajectory, original DSM, and matching geoid. It generates 600 RF detections and 300 fixes with no missing terrain samples. Receiver baseline is 8.9 km; observed crossing angles are about 41–87 degrees. Raw RMSE is 628.0 m and filtered RMSE is 292.9 m under the configured simulated RF errors. The default 1,500 m flight clears this terrain, so no terrain dropouts are invented. These figures describe simulated errors, not hardware calibration.
 
-Pull integration verification: both application pages build, all 16 incoming terrain/trajectory tests pass with Node 22.23.3, and the 15 sensor/tracking tests still pass. The RF generator has not yet been connected to the newly available real Odesa inputs.
+The one-minute mock remains as a separate controlled ridge/dropout demo. The main Odesa viewer now generates RF for its current trajectory and provides editable receiver sites and RF JSON/TAK downloads. Verification: 35 automated tests pass, the production build passes, and the browser workflow passes with no page errors.
 
 ## What the challenge requires
 
@@ -18,28 +18,38 @@ The sensor data should plausibly follow the same underlying scenario: position c
 
 **Crossing RF bearings and estimating a trajectory are not mandatory challenge outputs.** They are a useful validation and demonstration: if the generated measurements reconstruct a plausible track near truth, the data is more convincing. Two receivers are an example in the brief, not a requirement.
 
+## Confirmed sensor roadmap
+
+Sam confirmed the three types are **RF, camera, and satellite**, not three RF receivers. The current RF stage uses two fixed directional arrays. Sam owns receiver placement and sensor simulation; the trajectory producer supplies drone truth, Simone supplies terrain, and Ygit owns the interface.
+
+- [x] RF records, bearing crossing, and trajectory validation against the merged team output.
+- [ ] Camera: add a timestamped view from a configured site (initially RF1), with object association and documented field of view/resolution/visibility assumptions.
+- [ ] Satellite: add an associated image/context record with explicit timestamp and spatial resolution; distinguish real background imagery from any synthetic drone insertion. These two image types are bonus sources in the challenge PDF.
+
 ## My priorities and current status
 
 - [x] **Draft the shared data contract.** The `Scenario .json` download contains ENU receiver positions, a common sample clock, drone truth, RF observations, and associations. `README_RF_FUSION.md` documents it.
-- [ ] **Confirm the contract with teammates.** Ard supplies the timestamped trajectory and altitude; Simone confirms the terrain area/provider and receiver sites; Ygit confirms the export/UI handoff. These people have not yet confirmed the contract.
-- [x] **Implement Arda's trajectory importer.** `src/trajectory.ts` validates the proposed JSON contract; the headless RF generator consumes it directly. A one-minute, 1 Hz curved-flight mock is in `examples/drone_trajectory_mock_60s.json`. Replace its input path when Arda's file arrives. The browser still uses its built-in flight rather than this imported trajectory.
+- [x] **Verify the producer contract on actual merged output.** The team's `toReceiverGroundTruth` export feeds our importer with matching IDs/cadence and correct ellipsoidal altitude. Preserve the producer's UTC start explicitly. Sam configures receivers against Simone's terrain.
+- [x] **Implement Arda's trajectory importer.** `src/trajectory.ts` validates sampled WGS84 positions/ellipsoidal heights. The headless Odesa runner and main replay now feed the merged team's actual positions to the RF generator. The one-minute curved-flight mock remains available for isolated tests.
 - [x] **Configure mock receiver placement and RF settings.** `examples/rf_sensor_config.json` defines two arrays 3 km apart, transmitter frequency/power, receiver heights/gains/noise, and a synthetic ridge. The observed fixes have crossing angles of about 45–68 degrees. Actual terrain/site selection remains to be finalized with Simone; Sam owns the sensors.
 - [x] **Connect the existing RF model to scenario capture.** `src/signals.ts` generates per-receiver power, noisy global bearings, and missed detections from the flown truth. The capture records these with a fixed seed. Each report now records how much of its RF path had terrain samples.
 - [x] **Implement a configurable scenario export.** URL parameters select seed, route variant (`full`, `south`, or seeded waypoint variation), duration, and sample interval. The download includes configuration, truth, observations, misses, and a separate observation-to-object answer key. A presentation run must cover at least a few minutes; the 30-second fixture is only a development test.
 - [x] **Add structural validation.** Export warnings check duration, real-terrain provider availability, terrain path sample coverage, timestamps, bearings, IDs, and associations.
-- [ ] **Integrate the pulled Odesa terrain/trajectory package.** The team has now supplied `terrain/odesa/`, a deterministic trajectory engine, and an ellipsoidal-height receiver export adapter. Connect these real inputs to the RF generator; the synthetic mock remains a separate demo. The Odesa viewer is `/`; the existing RF viewer moved to `/scenario.html`.
-- [ ] **Verify a live terrain-backed capture.** Run the browser with loaded real Ukrainian terrain for at least two minutes, export JSON, inspect the warnings and signal behavior, and fix any terrain coverage gaps. This has not yet been run in this workspace.
-- [ ] **Exercise Ard's route variants.** Verify at least a straight and a curved route once Ard supplies them. Current app choices are the existing full Donbas circuit and a shorter southern circuit.
+- [x] **Integrate the pulled Odesa package.** Verify asset hashes, sample the original DSM and geoid in the same vertical frame as the drone, avoid adding blanket clutter to a DSM, and export a real-terrain five-minute RF scenario.
+- [x] **Position receivers and expose controls.** `examples/rf_sensor_odesa.json` configures two sites west of the route. The main replay draws sites/bearings/fixes and allows coordinate edits plus regeneration for the same flight. Changing trajectory settings invalidates the old RF capture.
+- [x] **Verify the live browser workflow.** Generated the real flight, scrubbed to its matching RF timestamp, applied a changed receiver coordinate, rejected an out-of-terrain site, checked downloaded JSON and all 902 CoT events, and verified trajectory edits invalidate old RF downloads. No browser page errors.
+- [x] **Export the signal trace as TAK XML.** Per-receiver detections and aggregate fixes use the real scenario clock. JSON and CoT answer keys identify record sources; unknown terrain generates no fabricated observations.
+- [ ] **Exercise Ard's route variants.** Verify at least a straight and a curved route once Ard supplies them. The merged Odesa generator currently supplies seeded smooth turns; the older Donbas viewer has full and southern circuits.
 - [x] **Demonstrate independent 2D localization.** `rf_fusion` intersects simultaneous forward AoA rays and rejects weak geometry; it does not read truth or associations.
 - [x] **Demonstrate trajectory estimation.** A constant-velocity Kalman filter predicts through RF dropouts, weights fixes using bearing uncertainty and crossing geometry, and gates inconsistent measurements. The one-minute mock produces track/metrics JSON, a trajectory comparison PNG, and an RF power/terrain-loss PNG. Its 35-second outage is terrain-driven; the measured whole-track RMSE is 73.6 m.
-- [ ] **Hand Ygit a live exported scenario and its measured estimate.** The UI currently shows its own instantaneous crossed-bearing fixes; the independent filtered track is a downloadable report, not yet drawn in Cesium.
+- [x] **Prepare Ygit's integration handoff.** `outputs/odesa/` contains the reproducible RF scenario, TAK trace, answer keys, diagnostics, estimates, metrics, validation report, and two plots. The main viewer now shows the same flight's instantaneous RF fixes; the independent filtered track remains in the CLI report. No external message has been sent.
 
 ## MVP assumptions
 
 - One drone, two stationary AoA-capable RF receivers, no weather. These are implementation choices, not challenge rules.
 - Start with a simple route. More complex curves or splines are optional scenario variants, owned by Ard.
 - Use 2D local coordinates in metres for bearing intersection (`x` East, `y` North; bearing clockwise from North). Drone altitude and actual terrain still matter to the RF simulation. Cesium's viewing mode is a UI choice.
-- Synchronize all outputs to one scenario clock. Current app reporting is every 2 seconds; the handoff fixture uses 1 second. Choose one shared interval at integration.
+- Synchronize all outputs to one scenario clock. The integrated Odesa run uses 1-second truth and RF samples. The older Donbas viewer defaults to 2-second reporting.
 
 ## Arda → Sam: proposed trajectory export
 
@@ -87,4 +97,4 @@ For this MVP, keep the lightweight model already in `src/signals.ts`:
 An existing external propagation library is [NTIA's Irregular Terrain Model](https://github.com/NTIA/itm). It predicts terrestrial path loss from terrain and radio parameters; it would still need our bearing/detection model and an assessment of its suitability for the drone's flight conditions. It is an alternative, not a dependency of the current MVP.
 
 - [x] **Validate the RF model on controlled cases.** Doubling distance adds 6.0206 dB loss. With noise disabled, clear paths give 60 fixes and perfect bearing crossings have less than 0.001 m horizontal error over this short route. Adding the synthetic ridge reduces RF2 detections from 60 to 25 with up to 39.6 dB additional attenuation; RF1 is unaffected. Missing terrain does not generate valid detections. See `outputs/mock_60s/rf_validation.json` and `npm run test:sensors`.
-- [ ] **Validate the selected real terrain.** The synthetic ridge proves model behavior, not real-world RF accuracy. Load Simone's real elevation data, check heights/coverage and receiver sites, and rerun the same pipeline for a longer final scenario.
+- [x] **Validate the selected real terrain integration.** The original Odesa DSM/geoid, exact height conversion, coverage, timing, RF values, and output associations are checked. Signal physics is still an approximation; only comparison with actual hardware measurements could calibrate its realism.
