@@ -1,0 +1,279 @@
+:root {
+  --bg: #080c14;
+  --panel: rgba(11, 18, 30, 0.88);
+  --panel-brd: rgba(120, 160, 220, 0.22);
+  --ink: #e8eef8;
+  --ink-dim: #93a4bd;
+  --accent: #4dd4ff;
+  --accent-2: #8affc1;
+  --warn: #ff6b5e;
+  --radius: 10px;
+  --font: ui-sans-serif, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+}
+
+* { box-sizing: border-box; }
+
+/* Class-based display rules below would otherwise override the attribute. */
+[hidden] { display: none !important; }
+
+html, body {
+  margin: 0;
+  height: 100%;
+  overflow: hidden;
+  background: var(--bg);
+  color: var(--ink);
+  font-family: var(--font);
+  -webkit-font-smoothing: antialiased;
+}
+
+.cesium-root { position: absolute; inset: 0; }
+
+/* Cesium's own chrome, toned down to match the panel. The credits stay
+   visible: Esri, CARTO, OpenStreetMap and AWS all require attribution. */
+.cesium-viewer .cesium-viewer-bottom {
+  /* Cesium's resize() writes `left` inline to clear the animation widget, so
+     only !important can move the credits out from behind the HUD. */
+  left: auto !important;
+  right: 8px !important;
+  bottom: 4px !important;
+  max-width: 46vw;
+  text-align: right;
+}
+.cesium-viewer .cesium-widget-credits {
+  font-size: 10px;
+  line-height: 1.4;
+  color: var(--ink-dim);
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.9);
+}
+.cesium-viewer .cesium-widget-credits a { color: var(--ink-dim); }
+.cesium-credit-expand-link { color: var(--accent) !important; }
+
+/* ---------- boot overlay ---------- */
+.boot {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-content: center;
+  gap: 16px;
+  justify-items: center;
+  background: radial-gradient(60% 60% at 50% 40%, #0e1726, #05080e);
+  z-index: 40;
+  transition: opacity 0.4s ease;
+}
+.boot--done { opacity: 0; pointer-events: none; }
+.boot__spinner {
+  width: 34px; height: 34px;
+  border: 3px solid rgba(77, 212, 255, 0.25);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation: spin 0.9s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+.boot__text { margin: 0; color: var(--ink-dim); font-size: 13px; letter-spacing: 0.04em; }
+
+/* ---------- info cards ---------- */
+.card {
+  position: absolute;
+  top: 12px;
+  width: 244px;
+  padding: 10px 12px;
+  background: var(--panel);
+  border: 1px solid var(--panel-brd);
+  border-radius: var(--radius);
+  backdrop-filter: blur(14px);
+  box-shadow: 0 18px 50px rgba(0, 0, 0, 0.45);
+  z-index: 20;
+}
+.card--left { left: 12px; }
+
+.card__head { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
+.card__head h1, .card__head h2 {
+  margin: 0;
+  font-size: 13px; font-weight: 650;
+  letter-spacing: 0.1em; text-transform: uppercase;
+  color: var(--accent);
+}
+.card__head h2 { font-size: 10px; font-weight: 600; color: var(--ink-dim); }
+.card__sub { color: var(--ink); font-weight: 500; letter-spacing: 0.04em; }
+.card__role {
+  margin: 4px 0 0;
+  font-size: 10.5px; line-height: 1.4;
+  color: var(--ink-dim);
+}
+.card--collapsed .rows, .card--collapsed .card__role { display: none; }
+
+.rows {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 4px 10px;
+  margin: 9px 0 0;
+  font-size: 11px;
+}
+.rows dt {
+  font-family: var(--mono); font-size: 10px;
+  color: var(--accent);
+  white-space: nowrap;
+}
+.rows dd {
+  margin: 0;
+  color: var(--ink-dim);
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+.rail--right .rows dd { text-align: left; }
+
+.icon-btn {
+  width: 22px; height: 22px;
+  display: grid; place-items: center;
+  font: inherit; font-size: 12px;
+  color: var(--ink-dim);
+  background: transparent;
+  border: 1px solid var(--panel-brd);
+  border-radius: 6px;
+  cursor: pointer;
+  flex: none;
+}
+.icon-btn:hover { color: var(--ink); background: rgba(255, 255, 255, 0.1); }
+.icon-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+
+/* Stacked cards: the rail positions them, the cards fill its width. */
+.rail {
+  position: absolute;
+  top: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  width: 244px;
+  z-index: 20;
+}
+.rail--right { right: 12px; }
+.rail .card { position: static; width: 100%; }
+
+/* ---------- TAK feed ---------- */
+/* Sits above the HUD rather than beside it, so neither has to shrink. */
+.card--feed {
+  top: auto;
+  bottom: 96px;
+  left: 12px;
+  width: 440px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.card--feed.card--collapsed .feed__status,
+.card--feed.card--collapsed .feed__xml,
+.card--feed.card--collapsed .feed__actions { display: none; }
+
+.feed__status {
+  display: flex; align-items: center; gap: 8px;
+  font-size: 10px; color: var(--ink-dim);
+}
+.feed__xml {
+  margin: 0;
+  max-height: 44vh;
+  padding: 9px 10px;
+  overflow: auto;
+  font-family: var(--mono);
+  font-size: 10.5px; line-height: 1.5;
+  white-space: pre;
+  tab-size: 2;
+  color: #cfe3ff;
+  background: rgba(3, 8, 16, 0.72);
+  border: 1px solid rgba(120, 160, 220, 0.16);
+  border-radius: 7px;
+}
+.feed__actions { display: flex; gap: 8px; }
+.btn {
+  flex: 1;
+  padding: 6px 10px;
+  font: inherit; font-size: 11px; font-weight: 600;
+  letter-spacing: 0.03em;
+  color: #04121b;
+  background: var(--accent);
+  border: 1px solid transparent;
+  border-radius: 7px;
+  cursor: pointer;
+}
+.btn:hover { filter: brightness(1.1); }
+.btn:focus-visible { outline: 2px solid var(--accent-2); outline-offset: 2px; }
+.btn--ghost {
+  color: var(--ink);
+  background: rgba(255, 255, 255, 0.08);
+  border-color: var(--panel-brd);
+}
+
+/* ---------- HUD ---------- */
+.hud {
+  position: absolute;
+  bottom: 14px; left: 50%;
+  transform: translateX(-50%);
+  display: grid; gap: 7px;
+  padding: 10px 14px;
+  background: var(--panel);
+  border: 1px solid var(--panel-brd);
+  border-radius: var(--radius);
+  backdrop-filter: blur(14px);
+  z-index: 20;
+  pointer-events: none;
+}
+.hud__row { display: flex; align-items: baseline; gap: 16px; }
+.hud__row--sub {
+  gap: 12px;
+  padding-top: 6px;
+  border-top: 1px solid var(--panel-brd);
+  font-size: 11px;
+  color: var(--ink-dim);
+}
+.gauge { display: flex; align-items: baseline; gap: 4px; }
+.gauge__k {
+  font-size: 9px; font-weight: 650;
+  letter-spacing: 0.1em;
+  color: var(--ink-dim);
+}
+.gauge__v {
+  font-family: var(--mono);
+  font-size: 17px; font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  color: var(--accent);
+  min-width: 3.4ch; text-align: right;
+}
+.gauge__u { font-size: 9.5px; color: var(--ink-dim); }
+.mono { font-family: var(--mono); font-variant-numeric: tabular-nums; }
+.badge {
+  padding: 2px 7px;
+  font-size: 9.5px; font-weight: 650; letter-spacing: 0.1em;
+  color: var(--accent-2);
+  background: rgba(138, 255, 193, 0.14);
+  border-radius: 999px;
+}
+.badge--free {
+  color: var(--accent);
+  background: rgba(77, 212, 255, 0.14);
+}
+.badge--dim {
+  color: var(--ink-dim);
+  background: rgba(255, 255, 255, 0.08);
+}
+.warn {
+  padding: 2px 7px;
+  font-size: 9.5px; font-weight: 650; letter-spacing: 0.1em;
+  color: #2a0603;
+  background: var(--warn);
+  border-radius: 999px;
+}
+
+@media (max-width: 1180px) {
+  .card--feed { width: 340px; }
+  .feed__xml { max-height: 30vh; }
+}
+
+@media (max-width: 760px) {
+  .rail--right, .card--feed { display: none; }
+  .card { width: 200px; }
+  .hud__row { gap: 10px; flex-wrap: wrap; }
+  .gauge__v { font-size: 14px; }
+}
+
+/* The free camera drives the view, so the globe reads as grabbable. */
+.cesium-root, .cesium-root canvas { cursor: grab; }

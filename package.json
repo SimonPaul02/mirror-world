@@ -1,0 +1,24 @@
+{
+  "name": "mq9-reaper-sim",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "description": "MQ-9 Reaper flight simulation on a CesiumJS globe with a free observer camera",
+  "scripts": {
+    "postinstall": "node scripts/copy-cesium-assets.mjs && node scripts/make-mq9.mjs",
+    "predev": "node scripts/copy-cesium-assets.mjs && node scripts/make-mq9.mjs",
+    "dev": "vite",
+    "prebuild": "node scripts/copy-cesium-assets.mjs && node scripts/make-mq9.mjs",
+    "build": "tsc --noEmit && vite build",
+    "preview": "vite preview",
+    "typecheck": "tsc --noEmit",
+    "model:mq9": "node scripts/make-mq9.mjs"
+  },
+  "dependencies": {
+    "cesium": "^1.146.0"
+  },
+  "devDependencies": {
+    "typescript": "^5.9.2",
+    "vite": "^8.3.4"
+  }
+}
