@@ -16,7 +16,7 @@
     "duration_s": 300,
     "output_interval_s": 1,
     "end_inclusive": false,
-    "seed": 42
+    "seed": 64
   },
   "movement": {
     "model": "generic_synthetic",

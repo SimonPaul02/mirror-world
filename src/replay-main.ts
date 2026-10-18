@@ -139,7 +139,7 @@ async function main() {
         },
       });
       rfView=new ScenarioView(viewer,[],rfData.replayFrames[0]!.detections.map(detection=>detection.receiver));
-      rfTrail=new EstimateTrail(viewer,rfData.replayFrames,rfData.scenario.ground_truth);
+      rfTrail=new EstimateTrail(viewer,rfData.replayFrames,rfData.scenario.ground_truth,liftHae);
       const report=rfData.report;
       el('rf-status').textContent=`${report.observations} detections · ${report.missed_detections} misses · ${report.successful_bearing_crossings}/${report.sample_count} fixes. Baseline ${(report.receiver_baseline_m/1000).toFixed(1)} km.`;
       for (const [id,content,type] of [
@@ -192,6 +192,15 @@ async function main() {
       fillColor:Color.WHITE,style:LabelStyle.FILL_AND_OUTLINE,outlineWidth:3,verticalOrigin:VerticalOrigin.BOTTOM},
     viewFrom:new Cartesian3(-1800,-1800,1300)
   });
+  /**
+   * The RF layer carries ellipsoidal heights, while `xyz` scales the orthometric
+   * part. Converting through the geoid keeps both on the same exaggerated scene.
+   * Only rendering uses this; the propagation model samples true terrain.
+   */
+  const liftHae = (lon: number, lat: number, hae: number) => {
+    const undulation = sampleGrid(geoid,lon,lat);
+    return (hae - undulation) * exaggeration + undulation;
+  };
   let routePositions: Cartesian3[] = [];
   const rebuildRoute = () => { routePositions = states.map(state=>xyz(state)); };
   const route = viewer.entities.add({polyline:{positions:new CallbackProperty(()=>routePositions,false),width:3,
@@ -219,6 +228,8 @@ async function main() {
     // A new provider instance is what invalidates the quadtree and re-tiles.
     viewer.terrainProvider = new LocalTerrainProvider(surface,geoid,manifest.attribution,value);
     rebuildRoute();
+    // The trail's positions are built once, so it is rebuilt at the new scale.
+    if (rfData) simulateRf();
     viewer.scene.requestRender();
   };
   // Label on drag, re-tile on release: retiling on every input event would
@@ -254,7 +265,8 @@ async function main() {
       if (index !== rfIndex) {
         const frame=rfData.replayFrames[index]!;
         const truth=rfData.scenario.ground_truth[index]!;
-        rfView.setReports(frame.detections,frame.fix,Cartesian3.fromDegrees(truth.lon,truth.lat,truth.hae_m));
+        rfView.setReports(frame.detections,frame.fix,
+          Cartesian3.fromDegrees(truth.lon,truth.lat,liftHae(truth.lon,truth.lat,truth.hae_m)));
         const stats=rfTrail!.showThrough(index);
         el('rf-trail-stats').textContent=`${stats.count} estimates · Current error: ${stats.currentErrorM === undefined ? 'no fix' : stats.currentErrorM.toFixed(0)+' m'} · RMSE so far: ${stats.rmseM === undefined ? '—' : stats.rmseM.toFixed(0)+' m'}`;
         el('rf-current').textContent=`t=${frame.timestamp_s.toFixed(1)} s · ${frame.detections.map(detection=>`${detection.receiver.uid}: ${detection.rssiDbm.toFixed(1)} dBm ${detection.heard?'heard':'missed'}`).join(' · ')} · ${frame.fix?'FIX':'NO FIX'}`;
