@@ -26,12 +26,21 @@ self.onmessage = async ({ data }) => {
   try {
     loaded ??= load(data.assetsBase).catch(error => { loaded = undefined; throw error; });
     const { manifest, terrain, geoid } = await loaded;
-    validateConfig(data.input, manifest);
     const encode = (value: unknown) => new TextEncoder().encode(JSON.stringify(value));
-    const [manifestHash, inputHash] = await Promise.all([sha256(encode(manifest)), sha256(encode(data.input))]);
-    const output = generateTrajectoryCore(data.input, terrain, manifest, {manifest: manifestHash, input: inputHash});
-    const receiverOutput = toReceiverGroundTruth(output, { scenarioId: data.scenarioId, geoid });
-    self.postMessage({ id: data.id, output, receiverOutput });
+    const inputs=data.inputs??[data.input];
+    if(!Array.isArray(inputs)||inputs.length<1||inputs.length>5) throw new Error('Choose 1–5 drones');
+    if(new Set(inputs.map(input=>input.object_id)).size!==inputs.length) throw new Error('Drone object IDs must be distinct');
+    const manifestHash=await sha256(encode(manifest));
+    const flights=[];
+    for(const [index,input] of inputs.entries()) {
+      validateConfig(input, manifest);
+      if(input.simulation.start_time!==inputs[0].simulation.start_time || input.simulation.duration_s!==inputs[0].simulation.duration_s || input.simulation.output_interval_s!==inputs[0].simulation.output_interval_s) throw new Error('All drones must share the scenario clock');
+      const inputHash=await sha256(encode(input));
+      const output = generateTrajectoryCore(input, terrain, manifest, {manifest: manifestHash, input: inputHash});
+      const receiverOutput = toReceiverGroundTruth(output, { scenarioId: index===0?data.scenarioId:`${data.scenarioId}__drone${index+1}`, geoid });
+      flights.push({output,receiverOutput});
+    }
+    self.postMessage({ id: data.id, ...flights[0], flights });
   } catch (error) {
     const failure = error as Error & { code?: string; details?: { elapsed_s?: number } };
     self.postMessage({ id: data.id, error: { message: failure.message, code: failure.code,

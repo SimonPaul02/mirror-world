@@ -1,9 +1,9 @@
 import './cesium-base-url';
 import './replay.css';
 import { Viewer, TileMapServiceImageryProvider, SingleTileImageryProvider, UrlTemplateImageryProvider,
-  buildModuleUrl, Cartesian3, Color, Rectangle, Math as CMath, CallbackPositionProperty,
+  buildModuleUrl, Cartesian3, Cartographic, Color, Rectangle, Math as CMath, CallbackPositionProperty,
   CallbackProperty, HeadingPitchRoll, Transforms, JulianDate, ClockRange, HeadingPitchRange,
-  PolylineGlowMaterialProperty, Cartesian2, LabelStyle, VerticalOrigin, Matrix4, ConstantProperty } from 'cesium';
+  PolylineGlowMaterialProperty, Cartesian2, LabelStyle, VerticalOrigin, Matrix4, ConstantProperty, SceneMode, type Entity } from 'cesium';
 import { fromArrayBuffer } from 'geotiff';
 import { LocalTerrainProvider } from './local-terrain';
 import { sampleGrid, replayState, type Grid, type TruthState } from './replay-math';
@@ -11,6 +11,12 @@ import { MQ9_MODEL } from './models';
 import { generateRfScenario, type SensorGeneratorConfig } from './sensor-generator';
 import { ScenarioView } from './scenario-view';
 import { EstimateTrail } from './estimate-trail';
+import { receiverControls } from './receiver-controls';
+import type { CropBounds } from './scenario-config';
+import { droneControls } from './drone-controls';
+import type { DroneTrajectory } from './trajectory';
+import { optionalSensorControls, generateOptionalSensors } from './optional-sensors';
+import { mapPlacement } from './map-placement';
 import odesaRfConfig from '../examples/rf_sensor_odesa.json';
 
 const el = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
@@ -35,6 +41,11 @@ async function main() {
     values: await dem.readRasters({samples:[0], interleave:true}) as Float32Array };
   if (manifest.coordinates.vertical_crs !== 'EPSG:3855') throw new Error('Replay requires EGM2008 truth heights');
   let states: TruthState[] = [];
+  let primaryStates: TruthState[]=[];
+  type Flight={objectId:string;trajectory:DroneTrajectory;states:TruthState[];fullTruth:unknown;entity?:Entity};
+  let flights: Flight[]=[];
+  let selectedDrone=0;
+  const extraEntities: Entity[]=[];
   let duration: number = defaults.simulation.duration_s;
   let start = JulianDate.fromIso8601(defaults.simulation.start_time);
   let end = JulianDate.addSeconds(start, duration, new JulianDate());
@@ -59,9 +70,10 @@ async function main() {
     pixels.data[k+3]=v === 0 ? 0 : 255;
   }
   ctx.putImageData(pixels,0,0);
+  const contextImage=canvas.toDataURL();
   const [w,s,e,n] = manifest.grid.pixel_edge_bounds_wsen;
   const localShade = viewer.imageryLayers.addImageryProvider(await SingleTileImageryProvider.fromUrl(
-    canvas.toDataURL(), {rectangle:Rectangle.fromDegrees(w,s,e,n), credit:manifest.attribution}));
+    contextImage, {rectangle:Rectangle.fromDegrees(w,s,e,n), credit:manifest.attribution}));
   let satellite: ReturnType<typeof viewer.imageryLayers.addImageryProvider> | undefined;
   el<HTMLInputElement>('satellite').onchange = () => {
     if (!satellite) {
@@ -83,70 +95,104 @@ async function main() {
   let active = false;
   let rfData: ReturnType<typeof generateRfScenario> | undefined;
   let rfView: ScenarioView | undefined;
-  let rfTrail: EstimateTrail | undefined;
-  let rfTrajectory: unknown;
+  let rfTrails: EstimateTrail[]=[];
+  let rfResults: ReturnType<typeof generateRfScenario>[]=[];
+  let optionalData: ReturnType<typeof generateOptionalSensors> | undefined;
+  const optionalEntities:Entity[]=[];
   let rfIndex = -1;
   let rfUrls: string[] = [];
   const rfConfig = odesaRfConfig as SensorGeneratorConfig;
-  for (const [index, receiver] of rfConfig.receivers.entries()) {
-    el<HTMLInputElement>(`rf${index+1}-lat`).value=String(receiver.lat);
-    el<HTMLInputElement>(`rf${index+1}-lon`).value=String(receiver.lon);
-  }
+  const sampleTerrain=(point: import('cesium').Cartographic)=>{
+    try {const lon=CMath.toDegrees(point.longitude),lat=CMath.toDegrees(point.latitude);return sampleGrid(surface,lon,lat)+sampleGrid(geoid,lon,lat);} catch {return undefined;}
+  };
+  const placement=mapPlacement(viewer,sampleTerrain);
+  const receiverEditor=receiverControls(rfConfig,manifest.grid.sample_center_bounds_wsen as CropBounds,sampleTerrain,()=>{
+    placement.cancel();clearRf();el('rf-status').textContent='Receiver settings changed. Apply sensor configuration to regenerate records.';
+  },placement.start);
+  const optionalEditor=optionalSensorControls(manifest.grid.sample_center_bounds_wsen as CropBounds,sampleTerrain,()=>{
+    placement.cancel();clearRf();el('rf-status').textContent='Sensor settings changed. Apply sensor configuration to regenerate records.';
+  },placement.start);
+  el<HTMLSelectElement>('preview-source').onchange=()=>{rfIndex=-1;};
   function clearRf() {
-    rfTrail?.destroy(); rfTrail=undefined;
+    for(const trail of rfTrails) trail.destroy();rfTrails=[];rfResults=[];
+    optionalData=undefined;for(const entity of optionalEntities) viewer.entities.remove(entity);optionalEntities.length=0;
+    el('optional-status').textContent='Apply sensor configuration to generate optional sensor records.';el('sensor-preview').hidden=true;
+    el<HTMLImageElement>('sensor-preview-image').removeAttribute('src');el<HTMLSelectElement>('preview-source').replaceChildren();
     rfView?.destroy(); rfView=undefined; rfData=undefined; rfIndex=-1;
     for (const url of rfUrls) URL.revokeObjectURL(url);
     rfUrls=[];
-    for (const id of ['download-rf','download-rf-cot']) {
+    for (const id of ['download-rf','download-rf-cot','download-bundle']) {
       el<HTMLAnchorElement>(id).removeAttribute('href'); el(id).setAttribute('aria-disabled','true');
     }
     el('rf-current').textContent='';
     el('rf-trail-stats').textContent='No RF estimates yet.';
   }
   function simulateRf() {
+    placement.cancel();
     clearRf();
-    if (!rfTrajectory) return;
+    if (!flights.length) return;
     const config=structuredClone(rfConfig);
-    for (const [index, receiver] of config.receivers.entries()) {
-      receiver.lat=el<HTMLInputElement>(`rf${index+1}-lat`).valueAsNumber;
-      receiver.lon=el<HTMLInputElement>(`rf${index+1}-lon`).valueAsNumber;
-    }
     try {
-      rfData=generateRfScenario(rfTrajectory,config,{
+      config.receivers=receiverEditor.read();
+      rfResults=flights.map((flight,index)=>generateRfScenario(flight.trajectory,{...config,seed:(config.seed+index)>>>0,emitter:{...config.emitter,freqMhz:config.emitter.freqMhz+index*5}},{
         real:true,source:manifest.name+'; DSM + EGM2008 geoid',
         provenance:{elevation_sha256:manifest.assets.surface_elevation.sha256,geoid_sha256:manifest.assets.geoid_undulation.sha256},
-        sample:point=>{
-          try {
-            const lon=CMath.toDegrees(point.longitude),lat=CMath.toDegrees(point.latitude);
-            return sampleGrid(surface,lon,lat)+sampleGrid(geoid,lon,lat);
-          } catch { return undefined; }
-        },
+        sample:sampleTerrain,
+      }));
+      rfTrails=rfResults.map(result=>new EstimateTrail(viewer,result.replayFrames,result.scenario.ground_truth));
+      optionalData=generateOptionalSensors(optionalEditor.read(flights),flights,sampleTerrain,{
+        data_uri:contextImage,bounds:manifest.grid.pixel_edge_bounds_wsen as CropBounds,width_px:canvas.width,height_px:canvas.height,source_pixel_size_degrees:manifest.grid.pixel_size_degrees,
+        attribution:typeof manifest.attribution==='string'?manifest.attribution:JSON.stringify(manifest.attribution),source_id:manifest.terrain_id??'odesa_terrain',
       });
-      rfView=new ScenarioView(viewer,[],rfData.replayFrames[0]!.detections.map(detection=>detection.receiver));
-      rfTrail=new EstimateTrail(viewer,rfData.replayFrames,rfData.scenario.ground_truth);
-      const report=rfData.report;
-      el('rf-status').textContent=`${report.observations} detections · ${report.missed_detections} misses · ${report.successful_bearing_crossings}/${report.sample_count} fixes. Baseline ${(report.receiver_baseline_m/1000).toFixed(1)} km.`;
-      for (const [id,content,type] of [
-        ['download-rf',JSON.stringify(rfData.scenario,null,2)+'\n','application/json'],
-        ['download-rf-cot',rfData.cot,'application/xml'],
-      ]) {
-        const url=URL.createObjectURL(new Blob([content!],{type})); rfUrls.push(url);
-        el<HTMLAnchorElement>(id!).href=url;el(id!).removeAttribute('aria-disabled');
+      const previewSelect=el<HTMLSelectElement>('preview-source');
+      for(const sensor of [...optionalData.configuration.cameras.map(camera=>camera.id),...Array.from({length:optionalData.configuration.satellite_count},(_,index)=>`SAT${index+1}`)]) {
+        const option=document.createElement('option');option.value=sensor;option.textContent=sensor;previewSelect.append(option);
       }
+      el('optional-status').textContent=`${optionalData.camera_frames.length} schematic camera frames · ${optionalData.satellite_images.length} satellite context records. Included in complete scenario download.`;
+      for(const camera of optionalData.configuration.cameras) {
+        const host=flights.find(flight=>flight.objectId===camera.host_object_id);
+        const position=new CallbackPositionProperty(()=>{
+          if(host) return xyz(replayState(host.states,JulianDate.secondsDifference(viewer.clock.currentTime,start)));
+          return Cartesian3.fromDegrees(camera.lon,camera.lat,sampleTerrain(Cartographic.fromDegrees(camera.lon,camera.lat))!+camera.height_agl_m);
+        },false);
+        optionalEntities.push(viewer.entities.add({position,point:{pixelSize:8,color:Color.LIGHTSKYBLUE,disableDepthTestDistance:Number.POSITIVE_INFINITY},label:{text:camera.id,font:'11px sans-serif',fillColor:Color.LIGHTSKYBLUE,pixelOffset:new Cartesian2(12,12),disableDepthTestDistance:Number.POSITIVE_INFINITY}}));
+      }
+      selectDrone(selectedDrone);
+      const bundle={schema_version:2,scenario_id:flights[0]!.trajectory.scenario_id,configuration:{rf:config,drone_count:flights.length,rf_placement_mode:el<HTMLSelectElement>('rf-placement').value,camera_placement_mode:el<HTMLSelectElement>('camera-placement').value,placement_seed:el<HTMLInputElement>('placement-seed').valueAsNumber,emitter_separation:'Distinct configured frequencies, ideal channel separation; no RF data association model'},trajectories:flights.map(flight=>flight.trajectory),rf_scenarios:rfResults.map(result=>result.scenario),optional_sensors:optionalData};
+      setDownload('download-bundle',JSON.stringify(bundle,null,2)+'\n','application/json');
+      placement.cancel();
     } catch (error) {
-      clearRf(); el('rf-status').textContent=`RF generation rejected: ${(error as Error).message}`;
+      clearRf(); el('rf-status').textContent=`Sensor generation rejected: ${(error as Error).message}`;
     }
   }
+  function setDownload(id:string,content:string,type:string) {
+    const link=el<HTMLAnchorElement>(id);
+    if(link.href.startsWith('blob:')) {URL.revokeObjectURL(link.href);rfUrls=rfUrls.filter(url=>url!==link.href);}
+    const url=URL.createObjectURL(new Blob([content],{type}));rfUrls.push(url);link.href=url;link.removeAttribute('aria-disabled');
+  }
+  function selectDrone(index:number) {
+    selectedDrone=index;states=flights[index]!.states;rfData=rfResults[index];rfIndex=-1;
+    rfView?.destroy();rfView=undefined;
+    if(rfData) {
+      rfView=new ScenarioView(viewer,[],rfData.replayFrames[0]!.detections.map(detection=>detection.receiver));
+      const report=rfData.report,count=rfData.scenario.sensors.length;
+      el('rf-status').textContent=`${flights[index]!.objectId}: ${report.observations} detections · ${report.missed_detections} misses · ${report.successful_bearing_crossings}/${report.sample_count} fixes. Widest baseline ${(report.receiver_baseline_m/1000).toFixed(1)} km.${count<2?' Fewer than two RF sites: no RF position fix.':''}`;
+      setDownload('download-rf',JSON.stringify(rfData.scenario,null,2)+'\n','application/json');setDownload('download-rf-cot',rfData.cot,'application/xml');
+    }
+    if(viewer.trackedEntity) viewer.trackedEntity=flights[index]!.entity;
+  }
+  el<HTMLSelectElement>('inspect-drone').onchange=()=>selectDrone(Number(el<HTMLSelectElement>('inspect-drone').value));
   el('apply-rf').onclick=simulateRf;
   const at = (time: JulianDate) => replayState(states, JulianDate.secondsDifference(time,start));
+  const primaryAt = (time: JulianDate) => replayState(primaryStates, JulianDate.secondsDifference(time,start));
   const xyz = (state: TruthState, ground=false) => Cartesian3.fromDegrees(state.longitude_deg,state.latitude_deg,
     (ground ? sampleGrid(surface,state.longitude_deg,state.latitude_deg) : state.altitude_egm2008_m) +
     sampleGrid(geoid,state.longitude_deg,state.latitude_deg));
   const aircraft = viewer.entities.add({ name:'Synthetic aircraft',
-    position:new CallbackPositionProperty(time => active ? xyz(at(time ?? viewer.clock.currentTime)) : undefined,false),
+    position:new CallbackPositionProperty(time => active ? xyz(primaryAt(time ?? viewer.clock.currentTime)) : undefined,false),
     orientation:new CallbackProperty(time => {
       if (!active) return undefined;
-      const state = at(time ?? viewer.clock.currentTime);
+      const state = primaryAt(time ?? viewer.clock.currentTime);
       return Transforms.headingPitchRollQuaternion(xyz(state),new HeadingPitchRoll(CMath.toRadians(state.heading_deg)+MQ9_MODEL.noseOffset,0,0));
     },false),
     model:{uri:MQ9_MODEL.uri,scale:1,minimumPixelSize:64,maximumScale:400},
@@ -159,7 +205,7 @@ async function main() {
     material:new PolylineGlowMaterialProperty({glowPower:.14,color:Color.fromCssColorString('#68e8e3')})}});
   const tether = viewer.entities.add({polyline:{positions:new CallbackProperty(time=>{
     if (!active) return [];
-    const state = at(time ?? viewer.clock.currentTime); return [xyz(state),xyz(state,true)];
+    const state = primaryAt(time ?? viewer.clock.currentTime); return [xyz(state),xyz(state,true)];
   },false),width:1,material:Color.WHITE.withAlpha(.6)}});
   const bounds:number[] = manifest.grid.sample_center_bounds_wsen;
   const corners = [[bounds[0]!,bounds[1]!],[bounds[2]!,bounds[1]!],[bounds[2]!,bounds[3]!],[bounds[0]!,bounds[3]!],[bounds[0]!,bounds[1]!]];
@@ -176,14 +222,38 @@ async function main() {
   const follow = el<HTMLButtonElement>('follow');
   function overview() {
     viewer.trackedEntity = undefined; follow.setAttribute('aria-pressed','false');
+    if (viewer.scene.mode===SceneMode.SCENE2D) {
+      viewer.camera.setView({destination:Rectangle.fromDegrees(w,s,e,n)});return;
+    }
     // An oblique view reveals the route's altitude without exaggerating the DSM.
     const center=Cartesian3.fromDegrees((w+e)/2,(s+n)/2,0);
     viewer.camera.lookAt(center,new HeadingPitchRange(0,CMath.toRadians(-60),54000));
     viewer.camera.lookAtTransform(Matrix4.IDENTITY);
   }
   el('overview').onclick = overview;
+  function changeView(flat:boolean) {
+    viewer.trackedEntity=undefined;
+    if(flat) viewer.scene.morphTo2D(0);else viewer.scene.morphTo3D(0);
+    el('view-2d').setAttribute('aria-pressed',String(flat));el('view-3d').setAttribute('aria-pressed',String(!flat));
+    follow.disabled=!active||flat;overview();
+    el('map-note').textContent=flat?'Drag to pan · Scroll to zoom':'Drag to orbit · Scroll to zoom · Ctrl + drag to tilt';
+  }
+  el('view-2d').onclick=()=>changeView(true);el('view-3d').onclick=()=>changeView(false);
+  const navigationStep=()=>{
+    const frustum=viewer.camera.frustum as {right?:number;left?:number};
+    return Math.max(100,viewer.scene.mode===SceneMode.SCENE2D?(frustum.right!-frustum.left!)*.15:viewer.camera.positionCartographic.height*.15);
+  };
+  el('nav-in').onclick=()=>viewer.camera.zoomIn(navigationStep());el('nav-out').onclick=()=>viewer.camera.zoomOut(navigationStep());
+  el('nav-north').onclick=()=>{viewer.trackedEntity=undefined;viewer.camera.setView({orientation:{heading:0,pitch:viewer.camera.pitch,roll:0}});};
+  document.querySelectorAll<HTMLButtonElement>('[data-pan]').forEach(button=>{button.onclick=()=>{
+    viewer.trackedEntity=undefined;const amount=navigationStep();
+    if(button.dataset.pan==='left') viewer.camera.moveLeft(amount);
+    if(button.dataset.pan==='right') viewer.camera.moveRight(amount);
+    if(button.dataset.pan==='up') viewer.camera.moveUp(amount);
+    if(button.dataset.pan==='down') viewer.camera.moveDown(amount);
+  };});
   follow.onclick = () => { if (!active) return; if(viewer.trackedEntity) overview(); else {
-    viewer.trackedEntity=aircraft; follow.setAttribute('aria-pressed','true');
+    viewer.trackedEntity=flights[selectedDrone]?.entity??aircraft; follow.setAttribute('aria-pressed','true');
   }};
   const play=el<HTMLButtonElement>('play'), timeline=el<HTMLInputElement>('timeline');
   timeline.max=String(duration); follow.disabled=true;
@@ -202,7 +272,21 @@ async function main() {
         const frame=rfData.replayFrames[index]!;
         const truth=rfData.scenario.ground_truth[index]!;
         rfView.setReports(frame.detections,frame.fix,Cartesian3.fromDegrees(truth.lon,truth.lat,truth.hae_m));
-        const stats=rfTrail!.showThrough(index);
+        const stats=rfTrails[selectedDrone]!.showThrough(index);
+        for(const [other,trail] of rfTrails.entries()) if(other!==selectedDrone) trail.showThrough(index);
+        if(optionalData) {
+          const sensor=el<HTMLSelectElement>('preview-source').value;
+          const camera=[...optionalData.camera_frames].reverse().find(frame=>frame.sensor_id===sensor&&frame.timestamp_s<=state.elapsed_s);
+          const satellite=[...optionalData.satellite_images].reverse().find(frame=>frame.sensor_id===sensor&&frame.timestamp_s<=state.elapsed_s);
+          el('sensor-preview').hidden=!camera&&!satellite;
+          if(camera) {
+            el<HTMLImageElement>('sensor-preview-image').src='data:image/svg+xml;charset=utf-8,'+encodeURIComponent(camera.svg);
+            el('sensor-preview-caption').textContent=`${sensor} · t=${camera.timestamp_s}s · ${camera.detections.length} resolved targets · schematic frame`;
+          } else if(satellite) {
+            el<HTMLImageElement>('sensor-preview-image').src=contextImage;
+            el('sensor-preview-caption').textContent=`${sensor} · t=${satellite.timestamp_s}s · static DSM hillshade context; no optical acquisition`;
+          }
+        }
         el('rf-trail-stats').textContent=`${stats.count} estimates · Current error: ${stats.currentErrorM === undefined ? 'no fix' : stats.currentErrorM.toFixed(0)+' m'} · RMSE so far: ${stats.rmseM === undefined ? '—' : stats.rmseM.toFixed(0)+' m'}`;
         el('rf-current').textContent=`t=${frame.timestamp_s.toFixed(1)} s · ${frame.detections.map(detection=>`${detection.receiver.uid}: ${detection.rssiDbm.toFixed(1)} dBm ${detection.heard?'heard':'missed'}`).join(' · ')} · ${frame.fix?'FIX':'NO FIX'}`;
         rfIndex=index;
@@ -231,6 +315,7 @@ async function main() {
   const number = (id: string) => el<HTMLInputElement>(`input-${id}`).valueAsNumber;
   const put = (id: string, value: string | number) => { el<HTMLInputElement>(`input-${id}`).value = String(value); };
   const [west, south, east, north] = bounds;
+  const droneEditor=droneControls(bounds as unknown as CropBounds);
   for (const [id, min, max] of [['lon',west,east],['lat',south,north]] as const) {
     const input = el<HTMLInputElement>(`input-${id}`);
     input.min=String(min); input.max=String(max);
@@ -248,7 +333,11 @@ async function main() {
     el<HTMLInputElement>('input-height').min=String(i.validation.minimum_surface_clearance_m);
   }
   function clearRun() {
-    clearRf();rfTrajectory=undefined;el<HTMLButtonElement>('apply-rf').disabled=true;
+    placement.cancel();
+    clearRf();flights=[];primaryStates=[];states=[];selectedDrone=0;
+    for(const entity of extraEntities) viewer.entities.remove(entity);extraEntities.length=0;
+    el<HTMLSelectElement>('inspect-drone').replaceChildren();el<HTMLSelectElement>('inspect-drone').disabled=true;
+    el<HTMLButtonElement>('apply-rf').disabled=true;
     el('rf-status').textContent='Generate a trajectory to simulate RF reception.';
     active=false; viewer.clock.shouldAnimate=false; viewer.trackedEntity=undefined;
     follow.setAttribute('aria-pressed','false'); follow.disabled=true;
@@ -321,6 +410,24 @@ async function main() {
         failed(`Generation rejected${atTime}: ${data.error.message}.${hint}`); return;
       }
       const generated=data.output;
+      flights=(data.flights??[{output:data.output,receiverOutput:data.receiverOutput}]).map((item: {output: typeof generated;receiverOutput: DroneTrajectory})=>({
+        objectId:item.output.resolved_input.object_id,
+        trajectory:{...item.receiverOutput,start_utc:item.output.resolved_input.simulation.start_time,duration_s:item.output.resolved_input.simulation.duration_s},
+        states:[...item.output.trajectory_truth,item.output.validation.terminal_state],fullTruth:item.output,
+      }));
+      selectedDrone=0;primaryStates=flights[0]!.states;flights[0]!.entity=aircraft;
+      const selector=el<HTMLSelectElement>('inspect-drone');selector.replaceChildren();selector.disabled=false;
+      for(const [index,flight] of flights.entries()) {
+        const option=document.createElement('option');option.value=String(index);option.textContent=flight.objectId;selector.append(option);
+        if(index===0) continue;
+        const color=Color.fromCssColorString(['#a9cbff','#d5a9ff','#ffbddd','#b3e7e1'][index-1]!);
+        const stateAt=(time:JulianDate)=>replayState(flight.states,JulianDate.secondsDifference(time,start));
+        flight.entity=viewer.entities.add({position:new CallbackPositionProperty(time=>xyz(stateAt(time??viewer.clock.currentTime)),false),
+          orientation:new CallbackProperty(time=>{const state=stateAt(time??viewer.clock.currentTime);return Transforms.headingPitchRollQuaternion(xyz(state),new HeadingPitchRoll(CMath.toRadians(state.heading_deg)+MQ9_MODEL.noseOffset,0,0));},false),
+          model:{uri:MQ9_MODEL.uri,minimumPixelSize:48,maximumScale:300},point:{pixelSize:7,color},
+          label:{text:flight.objectId,font:'11px sans-serif',fillColor:color,pixelOffset:new Cartesian2(0,-30),style:LabelStyle.FILL_AND_OUTLINE,outlineWidth:3},viewFrom:new Cartesian3(-1800,-1800,1300)});
+        extraEntities.push(flight.entity,viewer.entities.add({polyline:{positions:flight.states.map(state=>xyz(state)),width:2,material:color.withAlpha(.7)}}));
+      }
       aircraft.label!.text=new ConstantProperty(generated.resolved_input.object_id);
       states=[...generated.trajectory_truth,generated.validation.terminal_state];
       duration=generated.resolved_input.simulation.duration_s;
@@ -330,20 +437,23 @@ async function main() {
       route.polyline!.positions=new ConstantProperty(states.map(state=>xyz(state)));
       runEntities.forEach(entity=>{entity.show=true;});
       active=true; timeline.max=String(duration); timeline.value='0'; timeline.disabled=false;
-      play.disabled=false; follow.disabled=false; el<HTMLButtonElement>('restart').disabled=false;
-      downloadUrl=URL.createObjectURL(new Blob([JSON.stringify(generated,null,2)+'\n'],{type:'application/json'}));
+      play.disabled=false; follow.disabled=viewer.scene.mode===SceneMode.SCENE2D; el<HTMLButtonElement>('restart').disabled=false;
+      downloadUrl=URL.createObjectURL(new Blob([JSON.stringify(flights.length===1?generated:{flights:flights.map(flight=>flight.fullTruth)},null,2)+'\n'],{type:'application/json'}));
       download.href=downloadUrl; download.removeAttribute('aria-disabled');
-      receiverUrl=URL.createObjectURL(new Blob([JSON.stringify(data.receiverOutput,null,2)+'\n'],{type:'application/json'}));
+      receiverUrl=URL.createObjectURL(new Blob([JSON.stringify(flights.length===1?flights[0]!.trajectory:{trajectories:flights.map(flight=>flight.trajectory)},null,2)+'\n'],{type:'application/json'}));
       receiverDownload.href=receiverUrl; receiverDownload.removeAttribute('aria-disabled');
-      rfTrajectory={...data.receiverOutput,start_utc:generated.resolved_input.simulation.start_time,duration_s:generated.resolved_input.simulation.duration_s};
       el<HTMLButtonElement>('apply-rf').disabled=false;
       simulateRf();
-      el('run-info').textContent=`${generated.trajectory_truth.length} exported states + endpoint · Seed ${generated.resolved_input.simulation.seed}. Minimum checked clearance ${generated.validation.minimum_surface_clearance_m.toFixed(1)} m. Playback interpolates between truth samples.`;
+      el('run-info').textContent=`${flights.length} drone(s) · ${generated.trajectory_truth.length} exported states + endpoint per drone · Seed ${generated.resolved_input.simulation.seed}. Minimum checked clearance ${generated.validation.minimum_surface_clearance_m.toFixed(1)} m for drone 1. Every flight is terrain-validated. Playback interpolates between truth samples.`;
       busy(false); status.dataset.state='ready'; status.textContent='Trajectory ready. Press Play or scrub the timeline.';
     };
-    worker.postMessage({id:++requestId,input,scenarioId:el<HTMLInputElement>('input-scenario').value.trim(),assetsBase:new URL(asset(''),location.href).href});
+    const inputs=[input,...droneEditor.read().map((initial,index)=>{
+      const extra=structuredClone(input);extra.object_id=initial.object_id;Object.assign(extra.initial_state,initial);delete extra.initial_state.object_id;
+      extra.simulation.seed=(input.simulation.seed+index+1)>>>0;return extra;
+    })];
+    worker.postMessage({id:++requestId,input,inputs,scenarioId:el<HTMLInputElement>('input-scenario').value.trim(),assetsBase:new URL(asset(''),location.href).href});
   };
-  window.addEventListener('pagehide',()=>{worker?.terminate();clearRf();if(downloadUrl) URL.revokeObjectURL(downloadUrl);if(receiverUrl) URL.revokeObjectURL(receiverUrl);});
+  window.addEventListener('pagehide',()=>{worker?.terminate();clearRf();placement.destroy();if(downloadUrl) URL.revokeObjectURL(downloadUrl);if(receiverUrl) URL.revokeObjectURL(receiverUrl);});
   overview(); el('loading').remove();
 }
 main().catch(error=>{console.error(error);el('loading').textContent=`Unable to load replay: ${error.message}. Run npm run dev to prepare local assets.`;});

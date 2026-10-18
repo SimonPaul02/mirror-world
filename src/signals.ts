@@ -256,7 +256,7 @@ export class SignalModel {
 const cross2 = (ax: number, ay: number, bx: number, by: number): number => ax * by - ay * bx;
 
 /**
- * Crosses the bearings from two arrays into a position.
+ * Cross measured pairs and choose the valid pair with smallest modeled error.
  *
  * The arithmetic runs in a local east-north plane pinned to the first array.
  * Both receiver positions and their local north directions are transformed into
@@ -267,10 +267,21 @@ const cross2 = (ax: number, ay: number, bx: number, by: number): number => ax * 
  * behind one of the arrays.
  */
 export function crossBearings(detections: Detection[]): Fix | undefined {
+  let best: Fix | undefined;
+  for (let i = 0; i < detections.length; i++) {
+    for (let j = i + 1; j < detections.length; j++) {
+      const fix = crossTwoBearings([detections[i]!, detections[j]!]);
+      if (fix && (!best || fix.ceM < best.ceM)) best = fix;
+    }
+  }
+  return best;
+}
+
+function crossTwoBearings(detections: Detection[]): Fix | undefined {
   const heard = detections.filter((d) => d.heard && [d.measuredBearingDeg, d.measuredElevationDeg, d.sigmaDeg, d.receiver.lat, d.receiver.lon, d.antennaHae].every(Number.isFinite));
   if (heard.length < 2) return undefined;
 
-  // MVP has two receivers; additional inputs use the strongest two reports.
+  // Keep the strongest site as this pair's local reference.
   const [a, b] = [...heard].sort((x, y) => y.snrDb - x.snrDb) as [Detection, Detection];
   if (a.receiver.uid === b.receiver.uid) return undefined;
 

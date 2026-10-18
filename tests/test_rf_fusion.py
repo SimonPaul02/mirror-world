@@ -66,3 +66,15 @@ def test_uncertain_measurements_have_less_influence_and_gross_outliers_are_rejec
     previous = strong.state.copy()
     assert not strong.update((5000, 5000), np.eye(2) * 100)
     assert np.array_equal(strong.state, previous)
+
+
+def test_variable_receiver_count_needs_a_valid_pair_without_truth_access():
+    sensors = [{"id": f"RF{i}", "x_m": x, "y_m": y} for i, (x, y) in enumerate([(0, 0), (0, 0), (6000, 0), (0, 6000), (6000, 6000)])]
+    observations = [{"id": f"obs_{i}", "sensor_id": sensor["id"], "timestamp_s": 0, "bearing_deg": math.degrees(math.atan2(3000 - sensor["x_m"], 2500 - sensor["y_m"])) % 360} for i, sensor in enumerate(sensors)]
+    for count in [0, 1]:
+        assert estimate_track(sensors[:count], observations[:count], 1, 1)["points"] == []
+    track = estimate_track(sensors, observations, 1, 1)
+    assert len(track["points"]) == 1
+    point = track["points"][0]
+    assert math.dist((point["x_m"], point["y_m"]), (3000, 2500)) < 1e-6
+    assert len(point["observation_ids_used"]) == 2

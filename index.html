@@ -9,12 +9,14 @@
     <p class="muted">Copernicus GLO-30 surface · Odesa, Ukraine</p>
     <div class="legend"><i class="line cyan"></i> Generated trajectory <i class="line amber"></i> Terrain extent</div>
     <div class="actions"><button id="overview">Overview</button><button id="follow" aria-pressed="false">Follow aircraft</button></div>
+    <div class="actions"><button id="view-2d" aria-pressed="false">2D map</button><button id="view-3d" aria-pressed="true">3D globe</button></div>
     <label class="toggle"><input type="checkbox" id="satellite"/> Satellite imagery <small>online</small></label>
     <label class="toggle"><input type="checkbox" id="shade" checked/> Local surface shading</label>
     <div class="divider"></div><div class="section-label">02 / CONFIGURE RUN</div>
     <form id="run-form">
       <fieldset id="run-fields" disabled>
         <label class="field">Preset<select id="preset"><option value="42">Baseline · seed 42</option><option value="43">Alternate · seed 43</option><option value="custom">Custom settings</option></select></label>
+        <label class="field">Drone count<input id="drone-count" type="number" min="1" max="5" step="1" value="1" required/></label>
         <div class="form-grid">
           <label class="field wide">Scenario ID<input id="input-scenario" type="text" value="ukraine_demo_001" required/></label>
           <label class="field wide">Object ID<input id="input-object" type="text" required/></label>
@@ -26,6 +28,8 @@
           <label class="field">Heading (°)<input id="input-heading" type="number" min="0" max="359.999" step="any" required/></label>
           <label class="field wide">Initial height above surface (m)<input id="input-height" type="number" min="100" step="any" required/></label>
         </div>
+        <div id="drone-starts"></div>
+        <p class="footnote">Drone 1 uses the fields above. Additional drones have their own ID, start and heading; speed, altitude and timing are shared.</p>
         <details><summary>Timing and turning</summary><div class="form-grid">
           <label class="field wide">Start time (UTC ISO)<input id="input-start" type="text" required/></label>
           <label class="field">Export interval (s)<input id="input-interval" type="number" min="0.1" step="0.1" required/></label>
@@ -39,20 +43,23 @@
       <p id="generation-status" role="status" aria-live="polite">Loading engine inputs…</p>
     </form>
     <div class="divider"></div><div class="section-label">03 / CURRENT STATE</div>
+    <label class="field">Inspect drone<select id="inspect-drone" disabled></select></label>
     <div class="hero"><strong id="clearance">—</strong><span>metres above surface</span></div>
     <dl><dt>Position / lon, lat</dt><dd id="position">—</dd><dt>Altitude / EGM2008</dt><dd id="altitude">—</dd><dt>Surface / EGM2008</dt><dd id="surface">—</dd><dt>Speed / heading</dt><dd id="motion">—</dd><dt>UTC</dt><dd id="utc">—</dd></dl>
     <div class="divider"></div><div class="section-label">04 / RUN CHECK</div><p id="run-info">Generate a trajectory to inspect its validation results.</p>
     <a id="download-receiver" class="download" aria-disabled="true" download="ground_truth.json">Download receiver ground truth ↗</a>
     <a id="download-truth" class="download" aria-disabled="true" download="trajectory_truth.json">Download full trajectory JSON ↗</a>
     <div class="divider"></div><div class="section-label">05 / RF RECEIVERS</div>
-    <p class="muted">Two directional arrays · 2.4375 GHz · 12 m masts. Coordinates are editable; apply them to recalculate readings for this flight.</p>
+    <p class="muted">Directional RF arrays · 2.4375 GHz · 12 m masts. One receiver gives bearings; a position fix needs at least two with usable geometry.</p>
     <div class="form-grid">
-      <label class="field">RF1 latitude<input id="rf1-lat" type="number" step="0.001"/></label>
-      <label class="field">RF1 longitude<input id="rf1-lon" type="number" step="0.001"/></label>
-      <label class="field">RF2 latitude<input id="rf2-lat" type="number" step="0.001"/></label>
-      <label class="field">RF2 longitude<input id="rf2-lon" type="number" step="0.001"/></label>
+      <label class="field">RF receiver count<input id="rf-count" type="number" min="0" max="12" step="1" value="2"/></label>
+      <label class="field">Placement seed<input id="placement-seed" type="number" min="0" max="4294967295" step="1" value="42"/></label>
     </div>
-    <button id="apply-rf" type="button" disabled>Apply receiver sites</button>
+    <label class="field">RF placement<select id="rf-placement"><option value="manual">Manual placement</option><option value="random">Random placement (seeded)</option></select></label>
+    <button id="randomize-rf" type="button" disabled>Randomize RF sites in crop</button>
+    <p class="footnote">Edit every site's coordinates or place it on the map. Random placement runs only when selected and requested; the same seed repeats the same layout.</p>
+    <div id="rf-sites" class="form-grid"></div>
+    <button id="apply-rf" type="button" disabled>Apply sensor configuration</button>
     <p id="rf-status" role="status">Generate a trajectory to simulate RF reception.</p>
     <p id="rf-current" class="muted"></p>
     <p class="footnote">Mint: receivers · Yellow: bearings · Cyan: true trajectory.</p>
@@ -63,11 +70,31 @@
     </div>
     <p id="rf-trail-stats" class="muted" role="status">No RF estimates yet.</p>
     <p class="footnote">Dots and colored segments accumulate as time advances. Colors compare each RF fix with simulation truth; RMSE summarizes the visible fixes. Gaps have no fix. RF errors are simulated.</p>
-    <a id="download-rf" class="download" aria-disabled="true" download="rf_scenario.json">Download RF scenario JSON ↗</a>
-    <a id="download-rf-cot" class="download" aria-disabled="true" download="sensor_trace.cot">Download TAK signal trace ↗</a>
+    <a id="download-rf" class="download" aria-disabled="true" download="rf_scenario.json">Download selected drone RF JSON ↗</a>
+    <a id="download-rf-cot" class="download" aria-disabled="true" download="sensor_trace.cot">Download selected drone TAK trace ↗</a>
+    <a id="download-bundle" class="download" aria-disabled="true" download="scenario_bundle.json">Download complete scenario ↗</a>
+    <div class="divider"></div><div class="section-label">06 / CAMERA &amp; SATELLITE</div>
+    <div class="form-grid">
+      <label class="field">Camera count<input id="camera-count" type="number" min="0" max="5" step="1" value="0"/></label>
+      <label class="field">Satellite sources<input id="satellite-count" type="number" min="0" max="3" step="1" value="0"/></label>
+      <label class="field wide">Image record interval (s)<input id="image-interval" type="number" min="0.1" step="any" value="10"/></label>
+    </div>
+    <div id="camera-sites"></div>
+    <label class="field">Fixed camera placement<select id="camera-placement"><option value="manual">Manual placement</option><option value="random">Random placement (seeded)</option></select></label>
+    <button id="randomize-cameras" type="button" disabled>Randomize fixed camera sites in crop</button>
+    <p class="footnote">Camera: fixed 12 m mast or mount on a chosen drone; heading is an offset on a drone. Frames use an ideal 20° pinhole model and are schematic. Satellite sources provide shared static terrain context, not optical captures or drone detections. These records do not feed the RF estimator.</p>
+    <p id="optional-status" class="muted">Camera and satellite disabled.</p>
+    <label class="field">Sensor preview<select id="preview-source"></select></label>
+    <figure id="sensor-preview" hidden><img id="sensor-preview-image" alt="Selected synthetic sensor frame"/><figcaption id="sensor-preview-caption"></figcaption></figure>
     <p class="footnote">Heights converted with EGM2008 geoid for globe display. Surface relief is 1×. Outside the amber boundary: flat globe, no local elevation data.</p>
   </aside>
-  <div class="map-note">Drag to orbit · Scroll to zoom · Ctrl + drag to tilt</div>
+  <nav class="navigation-pad" aria-label="Map navigation">
+    <button id="nav-north" title="Face north">N ↑</button>
+    <div><button data-pan="left" aria-label="Pan west">←</button><button data-pan="up" aria-label="Pan north">↑</button><button data-pan="right" aria-label="Pan east">→</button></div>
+    <div><button id="nav-in" aria-label="Zoom in">+</button><button data-pan="down" aria-label="Pan south">↓</button><button id="nav-out" aria-label="Zoom out">−</button></div>
+  </nav>
+  <div id="placement-status" hidden><span id="placement-status-text"></span><button id="cancel-placement" type="button">Cancel</button></div>
+  <div id="map-note" class="map-note">Drag to orbit · Scroll to zoom · Ctrl + drag to tilt</div>
   <footer class="playback"><button id="play" disabled>Play</button><button id="restart" disabled title="Restart replay">↺</button><span id="elapsed">Not generated</span><input id="timeline" aria-label="Replay time" type="range" min="0" max="300" value="0" step="0.1" disabled/><label>Speed <select id="speed"><option value="1">1×</option><option value="5">5×</option><option value="20" selected>20×</option><option value="60">60×</option></select></label></footer>
   <div id="loading" role="status">Loading local Odesa surface and trajectory…</div>
   <script type="module" src="/src/replay-main.ts"></script>

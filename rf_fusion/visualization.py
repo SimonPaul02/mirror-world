@@ -85,16 +85,21 @@ def save_rf_diagnostics_png(path: str, frames: list[dict], sensors: list[dict]) 
     """Power, detection thresholds and terrain loss over the common scenario clock."""
     import math
 
-    image = Image.new("RGB", (1000, 650), "white")
+    image = Image.new("RGB", (1000, 680), "white")
     draw = ImageDraw.Draw(image)
     draw.text((80, 22), "RF trace: received power and modeled terrain attenuation", fill="#111827")
     if not frames:
         image.save(path)
         return
-    colors = ["#2563eb", "#dc2626"]
+    palette = ["#2563eb", "#dc2626", "#15803d", "#9333ea", "#c2410c", "#0891b2", "#be185d", "#4d7c0f", "#4338ca", "#a16207", "#0f766e", "#475569"]
+    colors = [palette[index % len(palette)] for index in range(len(sensors))]
     times = [frame["timestamp_s"] for frame in frames]
     first, span = min(times), max(max(times) - min(times), 1)
     all_readings = [reading for frame in frames for reading in frame["receivers"]]
+    if not all_readings:
+        draw.text((80, 75), "No RF receivers configured", fill="#374151")
+        image.save(path)
+        return
     min_power = math.floor(min(reading["power_dbm"] for reading in all_readings) / 10) * 10 - 5
     max_power = math.ceil(max(reading["power_dbm"] for reading in all_readings) / 10) * 10 + 5
     max_loss = max(10, math.ceil(max(reading["terrain_loss_db"] for reading in all_readings) / 10) * 10)
@@ -133,6 +138,6 @@ def save_rf_diagnostics_png(path: str, frames: list[dict], sensors: list[dict]) 
                         draw.line((x - 3, y + 3, x + 3, y - 3), fill=color)
     draw.text((420, 600), "Scenario time (s)", fill="#374151")
     for index, sensor in enumerate(sensors):
-        draw.text((80 + index * 140, 625), sensor["id"], fill=colors[index])
-    draw.text((370, 625), "Cross marks: missed detections", fill="#374151")
+        draw.text((80 + index * 70, 625), sensor["id"], fill=colors[index])
+    draw.text((80, 650), "Cross marks: missed detections", fill="#374151")
     image.save(path)

@@ -86,7 +86,7 @@ export class ScenarioCapture {
     origin?: { lat: number; lon: number };
     configurationMetadata?: Record<string, unknown>;
   }) {
-    if (args.receivers.length < 1) throw new Error("A scenario needs a receiver");
+    if (args.receivers.length < 1 && !args.origin) throw new Error("A receiver-free scenario needs an explicit reference origin");
     const first = args.receivers[0] as ReceiverSite;
     const origin = args.origin ?? { lat: first.lat, lon: first.lon };
     this.origin = Cartographic.fromDegrees(origin.lon, origin.lat);
@@ -184,12 +184,12 @@ export class ScenarioCapture {
 }
 
 /** Checks the record relationships that the challenge explicitly requires. */
-export function validateScenario(data: ScenarioData, options: { allowSyntheticTerrain?: boolean; minDurationS?: number } = {}): string[] {
+export function validateScenario(data: ScenarioData, options: { allowSyntheticTerrain?: boolean; minDurationS?: number; allowNoObservations?: boolean } = {}): string[] {
   const errors: string[] = [];
   if (!options.allowSyntheticTerrain && !data.terrain.real_terrain_available) errors.push("Real terrain was unavailable; this run does not meet the terrain requirement.");
   if (data.duration_s < (options.minDurationS ?? 120)) errors.push("Capture is shorter than a few minutes; keep the run going before presenting it.");
   if (data.ground_truth.length === 0) errors.push("No ground truth was captured.");
-  if (data.observations.length === 0) errors.push("No radio observations were captured.");
+  if (data.observations.length === 0 && !options.allowNoObservations) errors.push("No radio observations were captured.");
   const incompleteTerrainPaths = [...data.observations, ...data.missed_detections]
     .filter((item) => item.terrain_coverage < 1 || ("reason" in item && item.reason === "terrain_unavailable")).length;
   if (incompleteTerrainPaths) errors.push(`${incompleteTerrainPaths} RF paths lacked terrain samples; no valid sensor observations were generated for those paths.`);

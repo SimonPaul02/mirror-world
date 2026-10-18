@@ -45,5 +45,13 @@ test('UI worker matches CLI, responds to changed inputs, and recovers after reje
     assert.equal(outsideResult.error.code,'OUT_OF_BOUNDS'); assert(outsideResult.error.elapsed_s>0);
     assert.equal(outsideResult.output,undefined);
     assert.deepEqual((await run(original)).output,first.output);
+    const other=structuredClone(original);other.object_id='drone_002';other.initial_state.longitude_deg+=.002;other.simulation.seed=43;
+    const message=once(worker,'message');
+    worker.postMessage({id:++id,inputs:[original,other],scenarioId:'multi',assetsBase:'https://local.test/trajectory/'});
+    const [multi]=await message;
+    assert.equal(multi.flights.length,2);
+    assert.deepEqual(multi.flights[0].output,generateTrajectory(original,terrain,scenario.manifest));
+    assert.deepEqual(multi.flights[1].output,generateTrajectory(other,terrain,scenario.manifest));
+    assert.equal(multi.flights[1].receiverOutput.ground_truth[0].object_id,'drone_002');
   } finally { await worker.terminate(); }
 });

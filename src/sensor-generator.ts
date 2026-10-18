@@ -34,7 +34,7 @@ export function generateRfScenario(trajectoryInput: unknown, config: SensorGener
   const trajectory = parseTrajectory(trajectoryInput);
   if (!Number.isInteger(config.seed) || config.seed < 0 || config.seed > 0xffffffff) throw new Error("seed must be an unsigned 32-bit integer");
   if (!config.origin || !Number.isFinite(config.origin.lat) || !Number.isFinite(config.origin.lon) || Math.abs(config.origin.lat) >= 85 || Math.abs(config.origin.lon) > 180) throw new Error("Supply a valid local reference origin");
-  if (config.receivers.length !== 2 || new Set(config.receivers.map((rx) => rx.uid)).size !== 2) throw new Error("Configure exactly two distinct AoA receivers");
+  if (config.receivers.length > 12 || new Set(config.receivers.map((rx) => rx.uid)).size !== config.receivers.length) throw new Error("Configure 0–12 AoA receivers with distinct IDs");
   for (const rx of config.receivers) {
     const local = rx.x_m !== undefined || rx.y_m !== undefined;
     const geographic = rx.lat !== undefined || rx.lon !== undefined;
@@ -54,8 +54,12 @@ export function generateRfScenario(trajectoryInput: unknown, config: SensorGener
     const point = fromLocalXY(config.origin, rx.x_m!, rx.y_m!);
     return { ...rx, lon: toDeg(point.longitude), lat: toDeg(point.latitude) };
   });
-  const baseline = new EllipsoidGeodesic(Cartographic.fromDegrees(receivers[0]!.lon, receivers[0]!.lat), Cartographic.fromDegrees(receivers[1]!.lon, receivers[1]!.lat)).surfaceDistance;
-  if (baseline < 1) throw new Error("Receiver sites must be separated");
+  let baseline = 0;
+  for (let i=0;i<receivers.length;i++) for (let j=i+1;j<receivers.length;j++) {
+    const distance = new EllipsoidGeodesic(Cartographic.fromDegrees(receivers[i]!.lon, receivers[i]!.lat), Cartographic.fromDegrees(receivers[j]!.lon, receivers[j]!.lat)).surfaceDistance;
+    if (distance < 1) throw new Error("Receiver sites must be separated");
+    baseline = Math.max(baseline,distance);
+  }
   const signals = new SignalModel(receivers, emitter, terrain, mulberry32(config.seed), { samplePeriodS: trajectory.sample_period_s, ...config.noise, ...config.propagation });
   const capture = new ScenarioCapture({
     scenarioId: trajectory.scenario_id,
@@ -109,7 +113,7 @@ export function generateRfScenario(trajectoryInput: unknown, config: SensorGener
   }
   const scenario = capture.snapshot();
   for (const sensor of scenario.sensors) sensor.antenna_hae_m = signals.antennaHae(receivers.find((rx) => rx.uid === sensor.id)!);
-  const errors = validateScenario(scenario, { allowSyntheticTerrain: true, minDurationS: 0 });
+  const errors = validateScenario(scenario, { allowSyntheticTerrain: true, minDurationS: 0, allowNoObservations: true });
   if (errors.length) throw new Error(`Scenario integrity failed: ${errors.join(" ")}`);
   const warnings = validateScenario(scenario);
   const report = {
