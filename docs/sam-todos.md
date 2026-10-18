@@ -10,6 +10,9 @@ The one-minute mock remains as a separate controlled ridge/dropout demo. The mai
 
 Sam chooses the sensor mix and counts; automatic sensor-set optimization is outside this task.
 
+- [x] Rename the display control to **Height amplifier**, extend it to 1×–50×, and frame tall amplified flights in Overview. This is a visual effect; true sensor physics and exported heights stay unchanged.
+- [ ] Submission finish: enforce/flag the required RF trace for submission exports (zero-RF configurations remain useful for experiments), save a verified few-minute example package, and prepare the short presentation. Camera lens view, photorealistic images and additional fusion are optional.
+
 - [x] 2D/3D toggle, pan/zoom pad and north reset.
 - [x] Merge the team's variable-altitude flight profiles and terrain exaggeration with manual sensor controls and multiple drones. Rendering transforms apply to every aircraft, truth route, estimate trail, fixed camera and placement preview; RF propagation and exported coordinates remain at true scale.
 - [x] Configurable RF count including zero/one; manual placement is the default, with coordinate editing and click-to-place for every RF receiver and fixed camera. Random placement is an explicit option and button, within the original terrain crop; changing counts alone never randomizes sites. More than two RF sites use the best valid measured pair at each timestamp, not all-receiver least-squares fusion.

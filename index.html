@@ -12,9 +12,9 @@
     <div class="actions"><button id="view-2d" aria-pressed="false">2D map</button><button id="view-3d" aria-pressed="true">3D globe</button></div>
     <label class="toggle"><input type="checkbox" id="satellite"/> Satellite imagery <small>online</small></label>
     <label class="toggle"><input type="checkbox" id="shade" checked/> Local surface shading</label>
-    <label class="field range">Vertical exaggeration <output id="exag-out">4.0&times;</output>
-      <input id="exag" type="range" min="1" max="8" step="0.5" value="4"/>
-      <small class="footnote">True scale is 1.0&times;. This area has only 96 m of relief across 44 km, so 1.0&times; renders as a flat map.</small>
+    <label class="field range">Height amplifier <output id="exag-out">4.0&times;</output>
+      <input id="exag" type="range" min="1" max="50" step="0.5" value="4"/>
+      <small class="footnote">1&times;–50&times;, display only. Terrain and object heights share the same scale; measurements and exports keep true heights.</small>
     </label>
     <div class="divider"></div><div class="section-label">02 / CONFIGURE RUN</div>
     <form id="run-form">
@@ -96,7 +96,7 @@
     <p id="optional-status" class="muted">Camera and satellite disabled.</p>
     <label class="field">Sensor preview<select id="preview-source"></select></label>
     <figure id="sensor-preview" hidden><img id="sensor-preview-image" alt="Selected synthetic sensor frame"/><figcaption id="sensor-preview-caption"></figcaption></figure>
-    <p class="footnote">Display heights use the EGM2008 geoid and the selected vertical exaggeration. RF physics, exports and error metrics use true coordinates. Outside the amber boundary: flat globe, no local elevation data.</p>
+    <p class="footnote">Display heights use the EGM2008 geoid and the selected height amplifier. RF physics, exports and error metrics use true coordinates. Outside the amber boundary: flat globe, no local elevation data.</p>
   </aside>
   <nav class="navigation-pad" aria-label="Map navigation">
     <button id="nav-north" title="Face north">N ↑</button>

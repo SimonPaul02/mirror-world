@@ -278,6 +278,7 @@ async function main() {
     rebuildRoute();
     // The trail's positions are built once, so it is rebuilt at the new scale.
     if (rfData) simulateRf();
+    if (active && !viewer.trackedEntity) overview();
     viewer.scene.requestRender();
   };
   // Label on drag, re-tile on release: retiling on every input event would
@@ -292,8 +293,9 @@ async function main() {
       viewer.camera.setView({destination:Rectangle.fromDegrees(w,s,e,n)});return;
     }
     // An oblique view reveals the route's altitude without exaggerating the DSM.
-    const center=Cartesian3.fromDegrees((w+e)/2,(s+n)/2,0);
-    viewer.camera.lookAt(center,new HeadingPitchRange(CMath.toRadians(-24),CMath.toRadians(-30),46000));
+    const highest=flights.reduce((maximum,flight)=>Math.max(maximum,...flight.states.map(state=>state.altitude_egm2008_m)),0)*exaggeration;
+    const center=Cartesian3.fromDegrees((w+e)/2,(s+n)/2,Math.max(0,highest-10000)*.5);
+    viewer.camera.lookAt(center,new HeadingPitchRange(CMath.toRadians(-24),CMath.toRadians(-30),Math.max(46000,highest*1.8)));
     viewer.camera.lookAtTransform(Matrix4.IDENTITY);
   }
   el('overview').onclick = overview;
