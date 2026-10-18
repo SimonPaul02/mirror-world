@@ -39,6 +39,12 @@ export class EstimateTrail {
     private readonly viewer: Viewer,
     frames: Array<{ fix?: Fix }>,
     truth: Array<{ lon: number; lat: number }>,
+    /**
+     * Maps an ellipsoidal height into the rendered scene, which the replay page
+     * exaggerates. Fixes are drawn against the aircraft, so they have to take
+     * the same transform or the trail sits far below the track it is measuring.
+     */
+    liftHae: (lon: number, lat: number, hae: number) => number = (_lon, _lat, hae) => hae,
   ) {
     viewer.scene.primitives.add(this.lines);
     viewer.scene.primitives.add(this.points);
@@ -51,7 +57,7 @@ export class EstimateTrail {
         const fix = frame.fix;
         const errorM = horizontalErrorM(Cartographic.fromDegrees(fix.lon, fix.lat), Cartographic.fromDegrees(actual.lon, actual.lat));
         const color = errorColor(errorM);
-        const position = Cartesian3.fromDegrees(fix.lon, fix.lat, fix.haeM);
+        const position = Cartesian3.fromDegrees(fix.lon, fix.lat, liftHae(fix.lon, fix.lat, fix.haeM));
         entry.point = this.points.add({
           position, color, pixelSize: 6, outlineColor: Color.BLACK.withAlpha(.5), outlineWidth: 1,
           disableDepthTestDistance: Number.POSITIVE_INFINITY, show: false,

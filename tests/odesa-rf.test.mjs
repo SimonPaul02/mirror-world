@@ -45,7 +45,7 @@ test("real terrain produces a complete five-minute RF trace and defensible recei
   assert.ok(generated.report.crossing_angle_deg.min > 35);
   assert.ok(generated.scenario.sensors.every((sensor) => sensor.antenna_hae_m > sensor.mast_m));
   assert.ok(generated.scenario.observations.every((observation) => observation.terrain_coverage === 1));
-  // At 1.5 km above this low-relief DSM the route is clear; do not invent hills/dropouts.
+  // The high default route clears this low-relief DSM; do not invent hills/dropouts.
   assert.equal(generated.scenario.missed_detections.length, 0);
   for (const receiver of generated.report.receivers) assert.equal(receiver.max_terrain_loss_db, 0);
   assert.ok(generated.cot.includes('time="2026-10-18T12:00:00.000Z"'));

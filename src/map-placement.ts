@@ -1,6 +1,6 @@
 import { Cartesian3, Cartographic, Color, Math as CMath, ScreenSpaceEventHandler, ScreenSpaceEventType, type Cartesian2, type Viewer } from 'cesium';
 
-export function mapPlacement(viewer:Viewer,sample:(point:Cartographic)=>number|undefined) {
+export function mapPlacement(viewer:Viewer,sample:(point:Cartographic)=>number|undefined,liftHae:(lon:number,lat:number,hae:number)=>number=(_lon,_lat,hae)=>hae) {
   const handler=new ScreenSpaceEventHandler(viewer.scene.canvas);
   const status=document.getElementById('placement-status')!,text=document.getElementById('placement-status-text')!;
   let active=false;
@@ -20,7 +20,7 @@ export function mapPlacement(viewer:Viewer,sample:(point:Cartographic)=>number|u
         if(height===undefined) {text.textContent=`Place ${label} inside the terrain crop.`;return;}
         const lat=CMath.toDegrees(point.latitude),lon=CMath.toDegrees(point.longitude);
         cancel();placed(lat,lon);
-        viewer.entities.add({id:'sensor-placement-preview',position:Cartesian3.fromDegrees(lon,lat,height+1),point:{pixelSize:10,color:Color.WHITE,outlineColor:Color.CYAN,outlineWidth:2,disableDepthTestDistance:Number.POSITIVE_INFINITY}});
+        viewer.entities.add({id:'sensor-placement-preview',position:Cartesian3.fromDegrees(lon,lat,liftHae(lon,lat,height+1)),point:{pixelSize:10,color:Color.WHITE,outlineColor:Color.CYAN,outlineWidth:2,disableDepthTestDistance:Number.POSITIVE_INFINITY}});
       },ScreenSpaceEventType.LEFT_CLICK);
     },
     cancel:()=>{cancel();clearPreview();},clearPreview,

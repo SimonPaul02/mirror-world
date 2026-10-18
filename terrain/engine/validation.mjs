@@ -59,16 +59,40 @@ export function validateConfig(input, manifest) {
     "seed must be an unsigned 32-bit integer");
   assert.equal(sim.end_inclusive, false);
   const movement = input.movement;
+  // "smooth_random_agl" is the vertical counterpart of "smooth_random" heading:
+  // a target height above the surface is redrawn from the same seeded stream at
+  // a fixed interval, and the aircraft closes on it at a bounded climb rate.
+  const vertical = movement.altitude_mode === "smooth_random_agl";
   keys(movement, ["model", "heading_mode", "speed_mode", "altitude_mode",
-    "max_heading_rate_deg_s", "heading_change_interval_s"], "movement");
+    "max_heading_rate_deg_s", "heading_change_interval_s",
+    ...(vertical ? ["max_climb_rate_mps", "altitude_change_interval_s", "height_band_m", "height_step_m"] : [])], "movement");
   assert.equal(movement.model, "generic_synthetic");
   assert.equal(movement.heading_mode, "smooth_random");
   assert.equal(movement.speed_mode, "constant");
-  assert.equal(movement.altitude_mode, "constant_egm2008_height");
+  assert(vertical || movement.altitude_mode === "constant_egm2008_height",
+    "altitude_mode must be constant_egm2008_height or smooth_random_agl");
   finite(movement.max_heading_rate_deg_s, "max_heading_rate_deg_s");
   assert(movement.max_heading_rate_deg_s > 0 && movement.max_heading_rate_deg_s <= 180,
     "max_heading_rate_deg_s must be in (0, 180]");
   tickAligned(movement.heading_change_interval_s, "heading_change_interval_s");
+  if (vertical) {
+    finite(movement.max_climb_rate_mps, "max_climb_rate_mps");
+    assert(movement.max_climb_rate_mps > 0 && movement.max_climb_rate_mps <= 100,
+      "max_climb_rate_mps must be in (0, 100]");
+    tickAligned(movement.altitude_change_interval_s, "altitude_change_interval_s");
+    assert(Array.isArray(movement.height_band_m) && movement.height_band_m.length === 2,
+      "height_band_m must be a [minimum, maximum] pair");
+    const [low, high] = movement.height_band_m;
+    finite(low, "height_band_m minimum");
+    finite(high, "height_band_m maximum");
+    // Drawing below the clearance floor would reject the run partway through,
+    // which reads as a broken generator rather than a configuration mistake.
+    assert(low >= input.validation.minimum_surface_clearance_m,
+      "height_band_m minimum is below minimum_surface_clearance_m");
+    assert(high > low, "height_band_m maximum must exceed its minimum");
+    finite(movement.height_step_m, "height_step_m");
+    assert(movement.height_step_m > 0, "height_step_m must be positive");
+  }
   keys(input.output, ["format", "content", "horizontal_crs", "vertical_crs", "altitude_field", "surface_clearance_field"], "output");
   assert.equal(input.output.format, "json");
   assert.equal(input.output.content, "trajectory_truth");

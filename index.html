@@ -12,6 +12,10 @@
     <div class="actions"><button id="view-2d" aria-pressed="false">2D map</button><button id="view-3d" aria-pressed="true">3D globe</button></div>
     <label class="toggle"><input type="checkbox" id="satellite"/> Satellite imagery <small>online</small></label>
     <label class="toggle"><input type="checkbox" id="shade" checked/> Local surface shading</label>
+    <label class="field range">Vertical exaggeration <output id="exag-out">4.0&times;</output>
+      <input id="exag" type="range" min="1" max="8" step="0.5" value="4"/>
+      <small class="footnote">True scale is 1.0&times;. This area has only 96 m of relief across 44 km, so 1.0&times; renders as a flat map.</small>
+    </label>
     <div class="divider"></div><div class="section-label">02 / CONFIGURE RUN</div>
     <form id="run-form">
       <fieldset id="run-fields" disabled>
@@ -30,13 +34,19 @@
         </div>
         <div id="drone-starts"></div>
         <p class="footnote">Drone 1 uses the fields above. Additional drones have their own ID, start and heading; speed, altitude and timing are shared.</p>
-        <details><summary>Timing and turning</summary><div class="form-grid">
+        <label class="toggle"><input type="checkbox" id="input-vary"/> Vary height with the seed</label>
+        <details><summary>Timing, turning and altitude</summary><div class="form-grid">
           <label class="field wide">Start time (UTC ISO)<input id="input-start" type="text" required/></label>
           <label class="field">Export interval (s)<input id="input-interval" type="number" min="0.1" step="0.1" required/></label>
           <label class="field">Max turn rate (°/s)<input id="input-turn" type="number" min="0.01" max="180" step="any" required/></label>
           <label class="field wide">New heading command every (s)<input id="input-command" type="number" min="0.1" step="0.1" required/></label>
+          <label class="field">Max climb rate (m/s)<input id="input-climb" type="number" min="0.01" max="100" step="any" required/></label>
+          <label class="field">New height command every (s)<input id="input-altcommand" type="number" min="0.1" step="0.1" required/></label>
+          <label class="field">Height band min (m)<input id="input-bandlow" type="number" min="100" step="any" required/></label>
+          <label class="field">Height band max (m)<input id="input-bandhigh" type="number" min="100" step="any" required/></label>
+          <label class="field wide">Max height change per command (m)<input id="input-step" type="number" min="1" step="any" required/></label>
         </div></details>
-        <p class="footnote">Constant speed and absolute altitude. Minimum surface clearance: 100 m. Paths leaving the amber area are rejected; long runs may not fit this crop.</p>
+        <p class="footnote">Constant speed. Height is drawn from the band at each height command and flown at the climb rate; untick to hold a constant absolute altitude. Minimum surface clearance: 100 m. Paths leaving the amber area are rejected; long runs may not fit this crop.</p>
         <div class="actions"><button id="generate" type="submit">Generate trajectory</button><button id="new-seed" type="button">New seed</button></div>
       </fieldset>
       <button id="cancel-generation" type="button" hidden>Cancel generation</button>
@@ -86,7 +96,7 @@
     <p id="optional-status" class="muted">Camera and satellite disabled.</p>
     <label class="field">Sensor preview<select id="preview-source"></select></label>
     <figure id="sensor-preview" hidden><img id="sensor-preview-image" alt="Selected synthetic sensor frame"/><figcaption id="sensor-preview-caption"></figcaption></figure>
-    <p class="footnote">Heights converted with EGM2008 geoid for globe display. Surface relief is 1×. Outside the amber boundary: flat globe, no local elevation data.</p>
+    <p class="footnote">Display heights use the EGM2008 geoid and the selected vertical exaggeration. RF physics, exports and error metrics use true coordinates. Outside the amber boundary: flat globe, no local elevation data.</p>
   </aside>
   <nav class="navigation-pad" aria-label="Map navigation">
     <button id="nav-north" title="Face north">N ↑</button>

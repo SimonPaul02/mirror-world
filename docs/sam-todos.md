@@ -2,15 +2,16 @@
 
 Working agreement: keep this checklist current and automatically commit completed, verified changes as we work together.
 
-Latest real-input result: `npm run demo:odesa-rf` uses the merged team's 300-second Odesa trajectory, original DSM, and matching geoid. It generates 600 RF detections and 300 fixes with no missing terrain samples. Receiver baseline is 8.9 km; observed crossing angles are about 41–87 degrees. Raw RMSE is 628.0 m and filtered RMSE is 292.9 m under the configured simulated RF errors. The default 1,500 m flight clears this terrain, so no terrain dropouts are invented. These figures describe simulated errors, not hardware calibration.
+Latest real-input result: `npm run demo:odesa-rf` uses the merged team's 300-second Odesa trajectory, original DSM, and matching geoid. The current default uses seed 64 and a varying-height profile, about 1,075–1,533 m above the surface. It generates 600 RF detections and 300 fixes with no missing terrain samples. Receiver baseline is 8.9 km; observed crossing angles are about 38–66 degrees. Raw RMSE is 929.1 m and filtered RMSE is 278.2 m under the configured simulated RF errors. The flight clears this terrain, so no terrain dropouts are invented. These figures describe simulated errors, not hardware calibration.
 
-The one-minute mock remains as a separate controlled ridge/dropout demo. The main Odesa viewer supports 2D/3D navigation, 1–5 drones, 0–12 RF sites, 0–5 fixed/onboard cameras, and 0–3 satellite context sources. Configurations and synchronized records export in a complete scenario bundle. Verification: 39 automated tests pass, the production build passes, and mixed-sensor/multi-drone browser workflows pass with no page errors.
+The one-minute mock remains as a separate controlled ridge/dropout demo. The main Odesa viewer supports 2D/3D navigation, 1–5 drones, 0–12 RF sites, 0–5 fixed/onboard cameras, and 0–3 satellite context sources. Configurations and synchronized records export in a complete scenario bundle. Verification: 40 automated tests and the production build pass. Browser checks pass for variable/constant altitude, multiple drones, RF/camera controls, 2D placement, and exaggeration at 1× and 8×. Complete physical exports remain identical across display-scale changes.
 
 ## Manual scenario controls (confirmed scope)
 
 Sam chooses the sensor mix and counts; automatic sensor-set optimization is outside this task.
 
 - [x] 2D/3D toggle, pan/zoom pad and north reset.
+- [x] Merge the team's variable-altitude flight profiles and terrain exaggeration with manual sensor controls and multiple drones. Rendering transforms apply to every aircraft, truth route, estimate trail, fixed camera and placement preview; RF propagation and exported coordinates remain at true scale.
 - [x] Configurable RF count including zero/one; manual placement is the default, with coordinate editing and click-to-place for every RF receiver and fixed camera. Random placement is an explicit option and button, within the original terrain crop; changing counts alone never randomizes sites. More than two RF sites use the best valid measured pair at each timestamp, not all-receiver least-squares fusion.
 - [x] Multiple drones with individual IDs, starts and headings, terrain validation, common clock, separate RF channels/results, an inspect selector, and accumulating estimate trails.
 - [x] Camera count and fixed/drone mount selection; editable/randomized ground sites, orientation and host selection; geometric observations, answer keys and timestamped schematic previews.

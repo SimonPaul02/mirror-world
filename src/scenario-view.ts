@@ -76,6 +76,7 @@ export class ScenarioView {
     private readonly viewer: Viewer,
     route: Waypoint[],
     receivers: ReceiverSite[],
+    private readonly liftHae: (lon:number,lat:number,hae:number)=>number = (_lon,_lat,hae)=>hae,
   ) {
     this.siteIds = receivers.flatMap((receiver) => [`rx-${receiver.uid}`, `rx-mast-${receiver.uid}`]);
     this.routeIds = route.length ? ["route-plan", ...route.map((point) => `wp-${point.name}`)] : [];
@@ -147,7 +148,7 @@ export class ScenarioView {
       const origin = Cartesian3.fromDegrees(
         detection.receiver.lon,
         detection.receiver.lat,
-        detection.antennaHae,
+        this.liftHae(detection.receiver.lon,detection.receiver.lat,detection.antennaHae),
       );
       const reach = fix ? Cartesian3.distance(origin, Cartesian3.fromDegrees(fix.lon, fix.lat, detection.antennaHae)) * 1.08 : LOB_FALLBACK_M;
       Cartesian3.clone(origin, lob.positions[0] as Cartesian3);
@@ -165,7 +166,7 @@ export class ScenarioView {
       return;
     }
 
-    this.fixPosition = Cartesian3.fromDegrees(fix.lon, fix.lat, fix.haeM);
+    this.fixPosition = Cartesian3.fromDegrees(fix.lon, fix.lat, this.liftHae(fix.lon,fix.lat,fix.haeM));
     this.fixRadius = fix.ceM;
     const missM = horizontalErrorM(Cartographic.fromDegrees(fix.lon, fix.lat), Cartographic.fromCartesian(truth));
     const color = errorColor(missM);

@@ -7,7 +7,7 @@
   "initial_state": {
     "longitude_deg": 30.65,
     "latitude_deg": 46.5,
-    "height_above_surface_m": 1500,
+    "height_above_surface_m": 1200,
     "ground_speed_mps": 50,
     "heading_deg": 90
   },
@@ -16,15 +16,22 @@
     "duration_s": 300,
     "output_interval_s": 1,
     "end_inclusive": false,
-    "seed": 42
+    "seed": 64
   },
   "movement": {
     "model": "generic_synthetic",
     "heading_mode": "smooth_random",
     "speed_mode": "constant",
-    "altitude_mode": "constant_egm2008_height",
-    "max_heading_rate_deg_s": 1,
-    "heading_change_interval_s": 30
+    "altitude_mode": "smooth_random_agl",
+    "max_heading_rate_deg_s": 2,
+    "heading_change_interval_s": 45,
+    "max_climb_rate_mps": 8,
+    "altitude_change_interval_s": 60,
+    "height_band_m": [
+      600,
+      2000
+    ],
+    "height_step_m": 300
   },
   "validation": {
     "minimum_surface_clearance_m": 100,

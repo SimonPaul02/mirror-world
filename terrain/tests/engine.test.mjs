@@ -57,11 +57,30 @@ test("Odesa output has consistent time, speed, heading, altitude and clearance",
   assert.equal(result.validation.checked_position_count, 3001);
   assert.equal(result.validation.terminal_state.elapsed_s, 300);
   const start = Date.parse(scenario.input.simulation.start_time);
+  const movement = scenario.input.movement;
+  const vertical = movement.altitude_mode === "smooth_random_agl";
+  const band = movement.height_band_m ?? [];
+  // Consecutive exports are a chord of a curving path, so the straight-line
+  // distance falls short of the 50 m arc by about (turn per sample)^2 / 24.
+  // Deriving the tolerance keeps this tight when the turn rate changes.
+  const turnPerSample = movement.max_heading_rate_deg_s *
+    scenario.input.simulation.output_interval_s * Math.PI / 180;
+  const chordTolerance = 50 * turnPerSample ** 2 / 24 + 1e-5;
+  const turnPerExport = movement.max_heading_rate_deg_s * scenario.input.simulation.output_interval_s;
   for (let i = 0; i < states.length; i++) {
     const s = states[i];
     assert.equal(Date.parse(s.timestamp), start + i * 1000);
     assert.equal(s.elapsed_s, i);
-    assert.equal(s.altitude_egm2008_m, states[0].altitude_egm2008_m);
+    if (vertical) {
+      // Commands stay inside the band, and the climb between exports respects
+      // the configured rate over the one-second export interval.
+      assert(s.commanded_height_above_surface_m >= band[0] - 1e-9 &&
+        s.commanded_height_above_surface_m <= band[1] + 1e-9);
+      if (i > 0) assert(Math.abs(s.altitude_egm2008_m - states[i - 1].altitude_egm2008_m) <=
+        movement.max_climb_rate_mps * 1 + 1e-6, "climb rate exceeded between exports");
+    } else {
+      assert.equal(s.altitude_egm2008_m, states[0].altitude_egm2008_m);
+    }
     near(s.altitude_egm2008_m - s.surface_elevation_egm2008_m, s.height_above_surface_m);
     assert(s.height_above_surface_m >= 100);
     if (i === 0) continue;
@@ -71,9 +90,23 @@ test("Odesa output has consistent time, speed, heading, altitude and clearance",
     const dlon = (s.longitude_deg - prev.longitude_deg) * rad;
     const a = Math.sin(dlat / 2) ** 2 + Math.cos(prev.latitude_deg * rad) *
       Math.cos(s.latitude_deg * rad) * Math.sin(dlon / 2) ** 2;
-    near(2 * EARTH_RADIUS_M * Math.asin(Math.sqrt(a)), 50, 0.002);
-    assert(Math.abs(((s.heading_deg - prev.heading_deg + 540) % 360) - 180) <= 1 + 1e-9);
+    near(2 * EARTH_RADIUS_M * Math.asin(Math.sqrt(a)), 50, chordTolerance);
+    assert(Math.abs(((s.heading_deg - prev.heading_deg + 540) % 360) - 180) <= turnPerExport + 1e-9,
+      "heading rate exceeded between exports");
   }
+});
+
+test("the seed shapes the vertical profile, not only the ground track", () => {
+  const heights = run().trajectory_truth.map(s => s.height_above_surface_m);
+  const spread = Math.max(...heights) - Math.min(...heights);
+  assert(spread > 200, `vertical profile is flat: ${spread.toFixed(1)} m of spread`);
+
+  // A different seed must move the altitudes, or the seed is not reaching them.
+  const other = copyInput();
+  other.simulation.seed = scenario.input.simulation.seed + 1;
+  const otherHeights = run(other).trajectory_truth.map(s => s.height_above_surface_m);
+  assert(heights.some((h, i) => Math.abs(h - otherHeights[i]) > 1),
+    "changing the seed left the vertical profile untouched");
 });
 
 test("seed is reproducible and export frequency does not change the generated path", () => {

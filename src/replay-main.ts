@@ -19,6 +19,15 @@ import { optionalSensorControls, generateOptionalSensors } from './optional-sens
 import { mapPlacement } from './map-placement';
 import odesaRfConfig from '../examples/rf_sensor_odesa.json';
 
+/** The movement block of a generator config; vertical fields exist per mode. */
+interface Movement {
+  altitude_mode: 'constant_egm2008_height' | 'smooth_random_agl';
+  max_climb_rate_mps?: number;
+  altitude_change_interval_s?: number;
+  height_band_m?: [number, number];
+  height_step_m?: number;
+}
+
 const el = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
 const asset = (name: string) => `${import.meta.env.BASE_URL}trajectory/${name}`;
 async function get(name: string) {
@@ -42,7 +51,7 @@ async function main() {
   if (manifest.coordinates.vertical_crs !== 'EPSG:3855') throw new Error('Replay requires EGM2008 truth heights');
   let states: TruthState[] = [];
   let primaryStates: TruthState[]=[];
-  type Flight={objectId:string;trajectory:DroneTrajectory;states:TruthState[];fullTruth:unknown;entity?:Entity};
+  type Flight={objectId:string;trajectory:DroneTrajectory;states:TruthState[];fullTruth:unknown;entity?:Entity;route?:Entity};
   let flights: Flight[]=[];
   let selectedDrone=0;
   const extraEntities: Entity[]=[];
@@ -51,7 +60,7 @@ async function main() {
   let end = JulianDate.addSeconds(start, duration, new JulianDate());
   const base = await TileMapServiceImageryProvider.fromUrl(buildModuleUrl('Assets/Textures/NaturalEarthII'));
   const viewer = new Viewer('cesium', { baseLayer: false,
-    terrainProvider: new LocalTerrainProvider(surface, geoid, manifest.attribution),
+    terrainProvider: new LocalTerrainProvider(surface, geoid, manifest.attribution, 4),
     animation:false,timeline:false,baseLayerPicker:false,geocoder:false,homeButton:false,
     sceneModePicker:false,navigationHelpButton:false,fullscreenButton:false,
     selectionIndicator:false,infoBox:false,shouldAnimate:false });
@@ -59,7 +68,6 @@ async function main() {
   viewer.scene.globe.baseColor = Color.fromCssColorString('#1b3445');
   viewer.scene.globe.depthTestAgainstTerrain = true;
   viewer.scene.globe.enableLighting = false;
-  viewer.scene.verticalExaggeration = 1;
   const shade = await (await fromArrayBuffer(shadeBytes)).getImage();
   const shadeValues = await shade.readRasters({samples:[0],interleave:true}) as Uint8Array;
   const canvas = document.createElement('canvas'); canvas.width = shade.getWidth(); canvas.height = shade.getHeight();
@@ -72,6 +80,14 @@ async function main() {
   ctx.putImageData(pixels,0,0);
   const contextImage=canvas.toDataURL();
   const [w,s,e,n] = manifest.grid.pixel_edge_bounds_wsen;
+
+  // The Copernicus tile holds 96 m of relief spread over 44 km — a 0.2% slope.
+  // Rendered at true scale from any useful viewing distance that is a flat
+  // plane, which is why the scene reads as a 2D map even though it is real
+  // terrain. Heights are orthometric (EGM2008), so scaling them before the
+  // geoid is added exaggerates about mean sea level. LocalTerrainProvider
+  // applies exactly the same factor to the ground.
+  let exaggeration = 4;
   const localShade = viewer.imageryLayers.addImageryProvider(await SingleTileImageryProvider.fromUrl(
     contextImage, {rectangle:Rectangle.fromDegrees(w,s,e,n), credit:manifest.attribution}));
   let satellite: ReturnType<typeof viewer.imageryLayers.addImageryProvider> | undefined;
@@ -105,7 +121,7 @@ async function main() {
   const sampleTerrain=(point: import('cesium').Cartographic)=>{
     try {const lon=CMath.toDegrees(point.longitude),lat=CMath.toDegrees(point.latitude);return sampleGrid(surface,lon,lat)+sampleGrid(geoid,lon,lat);} catch {return undefined;}
   };
-  const placement=mapPlacement(viewer,sampleTerrain);
+  const placement=mapPlacement(viewer,sampleTerrain,(lon,lat,hae)=>liftHae(lon,lat,hae));
   const receiverEditor=receiverControls(rfConfig,manifest.grid.sample_center_bounds_wsen as CropBounds,sampleTerrain,()=>{
     placement.cancel();clearRf();el('rf-status').textContent='Receiver settings changed. Apply sensor configuration to regenerate records.';
   },placement.start);
@@ -139,7 +155,7 @@ async function main() {
         provenance:{elevation_sha256:manifest.assets.surface_elevation.sha256,geoid_sha256:manifest.assets.geoid_undulation.sha256},
         sample:sampleTerrain,
       }));
-      rfTrails=rfResults.map(result=>new EstimateTrail(viewer,result.replayFrames,result.scenario.ground_truth));
+      rfTrails=rfResults.map(result=>new EstimateTrail(viewer,result.replayFrames,result.scenario.ground_truth,liftHae));
       optionalData=generateOptionalSensors(optionalEditor.read(flights),flights,sampleTerrain,{
         data_uri:contextImage,bounds:manifest.grid.pixel_edge_bounds_wsen as CropBounds,width_px:canvas.width,height_px:canvas.height,source_pixel_size_degrees:manifest.grid.pixel_size_degrees,
         attribution:typeof manifest.attribution==='string'?manifest.attribution:JSON.stringify(manifest.attribution),source_id:manifest.terrain_id??'odesa_terrain',
@@ -153,7 +169,7 @@ async function main() {
         const host=flights.find(flight=>flight.objectId===camera.host_object_id);
         const position=new CallbackPositionProperty(()=>{
           if(host) return xyz(replayState(host.states,JulianDate.secondsDifference(viewer.clock.currentTime,start)));
-          return Cartesian3.fromDegrees(camera.lon,camera.lat,sampleTerrain(Cartographic.fromDegrees(camera.lon,camera.lat))!+camera.height_agl_m);
+          return Cartesian3.fromDegrees(camera.lon,camera.lat,liftHae(camera.lon,camera.lat,sampleTerrain(Cartographic.fromDegrees(camera.lon,camera.lat))!+camera.height_agl_m));
         },false);
         optionalEntities.push(viewer.entities.add({position,point:{pixelSize:8,color:Color.LIGHTSKYBLUE,disableDepthTestDistance:Number.POSITIVE_INFINITY},label:{text:camera.id,font:'11px sans-serif',fillColor:Color.LIGHTSKYBLUE,pixelOffset:new Cartesian2(12,12),disableDepthTestDistance:Number.POSITIVE_INFINITY}}));
       }
@@ -174,7 +190,7 @@ async function main() {
     selectedDrone=index;states=flights[index]!.states;rfData=rfResults[index];rfIndex=-1;
     rfView?.destroy();rfView=undefined;
     if(rfData) {
-      rfView=new ScenarioView(viewer,[],rfData.replayFrames[0]!.detections.map(detection=>detection.receiver));
+      rfView=new ScenarioView(viewer,[],rfData.replayFrames[0]!.detections.map(detection=>detection.receiver),liftHae);
       const report=rfData.report,count=rfData.scenario.sensors.length;
       el('rf-status').textContent=`${flights[index]!.objectId}: ${report.observations} detections · ${report.missed_detections} misses · ${report.successful_bearing_crossings}/${report.sample_count} fixes. Widest baseline ${(report.receiver_baseline_m/1000).toFixed(1)} km.${count<2?' Fewer than two RF sites: no RF position fix.':''}`;
       setDownload('download-rf',JSON.stringify(rfData.scenario,null,2)+'\n','application/json');setDownload('download-rf-cot',rfData.cot,'application/xml');
@@ -186,22 +202,56 @@ async function main() {
   const at = (time: JulianDate) => replayState(states, JulianDate.secondsDifference(time,start));
   const primaryAt = (time: JulianDate) => replayState(primaryStates, JulianDate.secondsDifference(time,start));
   const xyz = (state: TruthState, ground=false) => Cartesian3.fromDegrees(state.longitude_deg,state.latitude_deg,
-    (ground ? sampleGrid(surface,state.longitude_deg,state.latitude_deg) : state.altitude_egm2008_m) +
+    (ground ? sampleGrid(surface,state.longitude_deg,state.latitude_deg) : state.altitude_egm2008_m) * exaggeration +
     sampleGrid(geoid,state.longitude_deg,state.latitude_deg));
+  /**
+   * Flight-path angle, for pointing the nose along the climb. The true angle is
+   * only a few degrees and reads as level, but matching the fully exaggerated
+   * path overshoots to a 30-degree zoom climb. The square root splits the
+   * difference and tracks the slider, and the clamp keeps a steep leg from ever
+   * looking like a fighter. The window smooths out per-sample noise.
+   */
+  const PITCH_WINDOW_S = 2;
+  const MAX_PITCH = CMath.toRadians(18);
+  const climbAngle = (time: JulianDate, flightStates=primaryStates) => {
+    const sample = (elapsed: number) => replayState(flightStates, elapsed);
+    const t = JulianDate.secondsDifference(time,start);
+    const from = Math.max(0,t-PITCH_WINDOW_S), to = Math.min(duration,t+PITCH_WINDOW_S);
+    if (to <= from) return 0;
+    const rise = (sample(to).altitude_egm2008_m - sample(from).altitude_egm2008_m) * Math.sqrt(exaggeration);
+    const run = sample(t).ground_speed_mps * (to - from);
+    if (run <= 0) return 0;
+    return Math.max(-MAX_PITCH, Math.min(MAX_PITCH, Math.atan2(rise,run)));
+  };
   const aircraft = viewer.entities.add({ name:'Synthetic aircraft',
     position:new CallbackPositionProperty(time => active ? xyz(primaryAt(time ?? viewer.clock.currentTime)) : undefined,false),
     orientation:new CallbackProperty(time => {
       if (!active) return undefined;
-      const state = primaryAt(time ?? viewer.clock.currentTime);
-      return Transforms.headingPitchRollQuaternion(xyz(state),new HeadingPitchRoll(CMath.toRadians(state.heading_deg)+MQ9_MODEL.noseOffset,0,0));
+      const now = time ?? viewer.clock.currentTime;
+      const state = primaryAt(now);
+      return Transforms.headingPitchRollQuaternion(xyz(state),new HeadingPitchRoll(CMath.toRadians(state.heading_deg)+MQ9_MODEL.noseOffset,climbAngle(now),0));
     },false),
-    model:{uri:MQ9_MODEL.uri,scale:1,minimumPixelSize:64,maximumScale:400},
+    model:{uri:MQ9_MODEL.uri,scale:1,minimumPixelSize:48,maximumScale:60},
     point:{pixelSize:7,color:Color.WHITE,outlineColor:Color.CYAN,outlineWidth:2},
     label:{text:'AIRCRAFT 001',font:'11px sans-serif',pixelOffset:new Cartesian2(0,-34),
       fillColor:Color.WHITE,style:LabelStyle.FILL_AND_OUTLINE,outlineWidth:3,verticalOrigin:VerticalOrigin.BOTTOM},
     viewFrom:new Cartesian3(-1800,-1800,1300)
   });
-  const route = viewer.entities.add({polyline:{positions:states.map(state=>xyz(state)),width:3,
+  /**
+   * The RF layer carries ellipsoidal heights, while `xyz` scales the orthometric
+   * part. Converting through the geoid keeps both on the same exaggerated scene.
+   * Only rendering uses this; the propagation model samples true terrain.
+   */
+  const liftHae = (lon: number, lat: number, hae: number) => {
+    const undulation = sampleGrid(geoid,lon,lat);
+    return (hae - undulation) * exaggeration + undulation;
+  };
+  let routePositions: Cartesian3[] = [];
+  const rebuildRoute = () => {
+    routePositions = primaryStates.map(state=>xyz(state));
+    for(const flight of flights) if(flight.route) flight.route.polyline!.positions=new ConstantProperty(flight.states.map(state=>xyz(state)));
+  };
+  const route = viewer.entities.add({polyline:{positions:new CallbackProperty(()=>routePositions,false),width:3,
     material:new PolylineGlowMaterialProperty({glowPower:.14,color:Color.fromCssColorString('#68e8e3')})}});
   const tether = viewer.entities.add({polyline:{positions:new CallbackProperty(time=>{
     if (!active) return [];
@@ -219,6 +269,22 @@ async function main() {
         style:LabelStyle.FILL_AND_OUTLINE,outlineWidth:3}}));
   }
   runEntities.forEach(entity => { entity.show = false; });
+  const exagInput = el<HTMLInputElement>('exag'), exagOut = el('exag-out');
+  const setExaggeration = (value: number) => {
+    exaggeration = value;
+    exagOut.textContent = `${value.toFixed(1)}\u00d7`;
+    // A new provider instance is what invalidates the quadtree and re-tiles.
+    viewer.terrainProvider = new LocalTerrainProvider(surface,geoid,manifest.attribution,value);
+    rebuildRoute();
+    // The trail's positions are built once, so it is rebuilt at the new scale.
+    if (rfData) simulateRf();
+    viewer.scene.requestRender();
+  };
+  // Label on drag, re-tile on release: retiling on every input event would
+  // throw away terrain the viewer is still building.
+  exagInput.oninput = () => { exagOut.textContent = `${Number(exagInput.value).toFixed(1)}\u00d7`; };
+  exagInput.onchange = () => { setExaggeration(Number(exagInput.value)); };
+  setExaggeration(Number(exagInput.value));
   const follow = el<HTMLButtonElement>('follow');
   function overview() {
     viewer.trackedEntity = undefined; follow.setAttribute('aria-pressed','false');
@@ -227,7 +293,7 @@ async function main() {
     }
     // An oblique view reveals the route's altitude without exaggerating the DSM.
     const center=Cartesian3.fromDegrees((w+e)/2,(s+n)/2,0);
-    viewer.camera.lookAt(center,new HeadingPitchRange(0,CMath.toRadians(-60),54000));
+    viewer.camera.lookAt(center,new HeadingPitchRange(CMath.toRadians(-24),CMath.toRadians(-30),46000));
     viewer.camera.lookAtTransform(Matrix4.IDENTITY);
   }
   el('overview').onclick = overview;
@@ -271,7 +337,7 @@ async function main() {
       if (index !== rfIndex) {
         const frame=rfData.replayFrames[index]!;
         const truth=rfData.scenario.ground_truth[index]!;
-        rfView.setReports(frame.detections,frame.fix,Cartesian3.fromDegrees(truth.lon,truth.lat,truth.hae_m));
+        rfView.setReports(frame.detections,frame.fix,Cartesian3.fromDegrees(truth.lon,truth.lat,liftHae(truth.lon,truth.lat,truth.hae_m)));
         const stats=rfTrails[selectedDrone]!.showThrough(index);
         for(const [other,trail] of rfTrails.entries()) if(other!==selectedDrone) trail.showThrough(index);
         if(optionalData) {
@@ -313,6 +379,12 @@ async function main() {
   const cancel = el<HTMLButtonElement>('cancel-generation');
   let worker: Worker | undefined, requestId = 0, downloadUrl: string | undefined;
   const number = (id: string) => el<HTMLInputElement>(`input-${id}`).valueAsNumber;
+  const vary = el<HTMLInputElement>('input-vary');
+  const varyFields = ['climb','altcommand','bandlow','bandhigh','step'];
+  // Required-but-disabled inputs are skipped by reportValidity, which is what
+  // keeps the constant-altitude path from tripping over the vertical fields.
+  const syncVary = () => { for (const id of varyFields) el<HTMLInputElement>(`input-${id}`).disabled=!vary.checked; };
+  vary.addEventListener('change',syncVary);
   const put = (id: string, value: string | number) => { el<HTMLInputElement>(`input-${id}`).value = String(value); };
   const [west, south, east, north] = bounds;
   const droneEditor=droneControls(bounds as unknown as CropBounds);
@@ -330,7 +402,20 @@ async function main() {
     put('height',i.initial_state.height_above_surface_m); put('start',i.simulation.start_time);
     put('interval',i.simulation.output_interval_s); put('turn',i.movement.max_heading_rate_deg_s);
     put('command',i.movement.heading_change_interval_s);
-    el<HTMLInputElement>('input-height').min=String(i.validation.minimum_surface_clearance_m);
+    // The template may ship either altitude law, so fall back to sane values
+    // rather than leaving the vertical fields empty and failing form validity.
+    const m=i.movement as Movement;
+    vary.checked=m.altitude_mode === 'smooth_random_agl';
+    put('climb',m.max_climb_rate_mps ?? 5);
+    put('altcommand',m.altitude_change_interval_s ?? 40);
+    put('bandlow',m.height_band_m?.[0] ?? i.validation.minimum_surface_clearance_m * 3);
+    put('bandhigh',m.height_band_m?.[1] ?? 2000);
+    put('step',m.height_step_m ?? 350);
+    const floor=String(i.validation.minimum_surface_clearance_m);
+    el<HTMLInputElement>('input-height').min=floor;
+    el<HTMLInputElement>('input-bandlow').min=floor;
+    el<HTMLInputElement>('input-bandhigh').min=floor;
+    syncVary();
   }
   function clearRun() {
     placement.cancel();
@@ -393,6 +478,22 @@ async function main() {
     Object.assign(input.simulation,{seed:number('seed'),duration_s:number('duration'),output_interval_s:number('interval'),
       start_time:el<HTMLInputElement>('input-start').value.trim()});
     Object.assign(input.movement,{max_heading_rate_deg_s:number('turn'),heading_change_interval_s:number('command')});
+    // validateConfig asserts an exact key set per mode, so the vertical fields
+    // have to be removed rather than left behind when the toggle is off.
+    const movement=input.movement as Movement;
+    if (vary.checked) {
+      movement.altitude_mode='smooth_random_agl';
+      movement.max_climb_rate_mps=number('climb');
+      movement.altitude_change_interval_s=number('altcommand');
+      movement.height_band_m=[number('bandlow'),number('bandhigh')];
+      movement.height_step_m=number('step');
+    } else {
+      movement.altitude_mode='constant_egm2008_height';
+      delete movement.max_climb_rate_mps;
+      delete movement.altitude_change_interval_s;
+      delete movement.height_band_m;
+      delete movement.height_step_m;
+    }
     try {
       worker ??= new Worker(new URL('./trajectory-worker.ts',import.meta.url),{type:'module'});
     } catch (error) {
@@ -423,10 +524,11 @@ async function main() {
         const color=Color.fromCssColorString(['#a9cbff','#d5a9ff','#ffbddd','#b3e7e1'][index-1]!);
         const stateAt=(time:JulianDate)=>replayState(flight.states,JulianDate.secondsDifference(time,start));
         flight.entity=viewer.entities.add({position:new CallbackPositionProperty(time=>xyz(stateAt(time??viewer.clock.currentTime)),false),
-          orientation:new CallbackProperty(time=>{const state=stateAt(time??viewer.clock.currentTime);return Transforms.headingPitchRollQuaternion(xyz(state),new HeadingPitchRoll(CMath.toRadians(state.heading_deg)+MQ9_MODEL.noseOffset,0,0));},false),
-          model:{uri:MQ9_MODEL.uri,minimumPixelSize:48,maximumScale:300},point:{pixelSize:7,color},
+          orientation:new CallbackProperty(time=>{const now=time??viewer.clock.currentTime;const state=stateAt(now);return Transforms.headingPitchRollQuaternion(xyz(state),new HeadingPitchRoll(CMath.toRadians(state.heading_deg)+MQ9_MODEL.noseOffset,climbAngle(now,flight.states),0));},false),
+          model:{uri:MQ9_MODEL.uri,minimumPixelSize:48,maximumScale:60},point:{pixelSize:7,color},
           label:{text:flight.objectId,font:'11px sans-serif',fillColor:color,pixelOffset:new Cartesian2(0,-30),style:LabelStyle.FILL_AND_OUTLINE,outlineWidth:3},viewFrom:new Cartesian3(-1800,-1800,1300)});
-        extraEntities.push(flight.entity,viewer.entities.add({polyline:{positions:flight.states.map(state=>xyz(state)),width:2,material:color.withAlpha(.7)}}));
+        flight.route=viewer.entities.add({polyline:{positions:flight.states.map(state=>xyz(state)),width:2,material:color.withAlpha(.7)}});
+        extraEntities.push(flight.entity,flight.route);
       }
       aircraft.label!.text=new ConstantProperty(generated.resolved_input.object_id);
       states=[...generated.trajectory_truth,generated.validation.terminal_state];
@@ -434,7 +536,7 @@ async function main() {
       start=JulianDate.fromIso8601(states[0]!.timestamp); end=JulianDate.addSeconds(start,duration,new JulianDate());
       viewer.clock.startTime=start.clone(); viewer.clock.stopTime=end.clone(); viewer.clock.currentTime=start.clone();
       viewer.clock.shouldAnimate=false;
-      route.polyline!.positions=new ConstantProperty(states.map(state=>xyz(state)));
+      rebuildRoute();
       runEntities.forEach(entity=>{entity.show=true;});
       active=true; timeline.max=String(duration); timeline.value='0'; timeline.disabled=false;
       play.disabled=false; follow.disabled=viewer.scene.mode===SceneMode.SCENE2D; el<HTMLButtonElement>('restart').disabled=false;
