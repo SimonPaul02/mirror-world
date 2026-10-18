@@ -19,13 +19,19 @@ interface Movement {
 }
 
 const el = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
-const asset = (name: string) => `${import.meta.env.BASE_URL}trajectory/${name}`;
+/** Regions are staged side by side; ?region=<id> selects one, else the catalog default. */
+let regionId = '';
+const catalogUrl = `${import.meta.env.BASE_URL}trajectory/regions.json`;
+const asset = (name: string) => `${import.meta.env.BASE_URL}trajectory/${regionId}/${name}`;
 async function get(name: string) {
   const response = await fetch(asset(name));
   if (!response.ok) throw new Error(`${name}: HTTP ${response.status}`);
   return response;
 }
 async function main() {
+  const catalog = await (await fetch(catalogUrl)).json();
+  const wanted = new URLSearchParams(location.search).get('region');
+  regionId = catalog.regions.some((r: { id: string }) => r.id === wanted) ? wanted as string : catalog.default;
   const [manifest, defaults, geoid, demBytes, shadeBytes] = await Promise.all([
     get('manifest.json').then(r => r.json()), get('defaults.json').then(r => r.json()),
     get('geoid-egm2008.json').then(r => r.json()) as Promise<Grid>,

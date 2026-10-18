@@ -1,0 +1,53 @@
+{
+  "schema_version": "1.0",
+  "note": "Flight areas for the replay lab. Every fetched region is a window of the same Copernicus GLO-30 DSM that the packaged Odesa crop comes from, read keyless from the AWS Open Data mirror, so all regions share one dataset and one vertical datum. relief_m is measured, not estimated. Each box sits inside a single source tile, so no region needs mosaicking.",
+  "source": {
+    "name": "Copernicus GLO-30 DSM",
+    "provider": "AWS Open Data (Copernicus DEM)",
+    "url_template": "https://copernicus-dem-30m.s3.amazonaws.com/Copernicus_DSM_COG_10_N{lat}_00_E{lon}_00_DEM/Copernicus_DSM_COG_10_N{lat}_00_E{lon}_00_DEM.tif",
+    "documentation": "https://registry.opendata.aws/copernicus-dem/",
+    "surface_type": "DSM: includes buildings and vegetation",
+    "vertical_reference": "EGM2008"
+  },
+  "regions": [
+    { "id": "odesa", "name": "Odesa coast", "blurb": "Black Sea shoreline, estuary and loess flats", "packaged": true,
+      "bounds_wsen": [30.55, 46.30, 30.95, 46.70], "relief_m": 94,
+      "flight": { "height_above_surface_m": 1200, "height_band_m": [600, 2000], "max_climb_rate_mps": 8 } },
+
+    { "id": "donbas-siversk", "name": "Siversk ridge", "blurb": "Siverskyi Donets valley and the ridge south of it",
+      "bounds_wsen": [38.05, 48.55, 38.45, 48.95], "relief_m": 224,
+      "flight": { "height_above_surface_m": 1200, "height_band_m": [600, 2000], "max_climb_rate_mps": 8 } },
+
+    { "id": "donbas-bakhmut", "name": "Bakhmut uplands", "blurb": "Donetsk ridge, the highest ground in the Donbas",
+      "bounds_wsen": [38.05, 48.05, 38.45, 48.45], "relief_m": 261,
+      "flight": { "height_above_surface_m": 1200, "height_band_m": [600, 2000], "max_climb_rate_mps": 8 } },
+
+    { "id": "dniester-canyon", "name": "Dniester canyon", "blurb": "Incised meanders cut 200 m into the Podillia plateau",
+      "bounds_wsen": [26.05, 48.45, 26.45, 48.85], "relief_m": 354,
+      "flight": { "height_above_surface_m": 1300, "height_band_m": [700, 2100], "max_climb_rate_mps": 10 } },
+
+    { "id": "kryvyi-rih", "name": "Kryvyi Rih basin", "blurb": "Iron-ore open pits; the DSM drops below sea level",
+      "bounds_wsen": [33.05, 47.55, 33.45, 47.95], "relief_m": 546,
+      "flight": { "height_above_surface_m": 1300, "height_band_m": [700, 2100], "max_climb_rate_mps": 10 } },
+
+    { "id": "beskids", "name": "Skole Beskids", "blurb": "Forested Carpathian foothills and long parallel ridges",
+      "bounds_wsen": [23.05, 49.05, 23.45, 49.45], "relief_m": 974,
+      "flight": { "height_above_surface_m": 1500, "height_band_m": [900, 2400], "max_climb_rate_mps": 16 } },
+
+    { "id": "zakarpattia", "name": "Zakarpattia front", "blurb": "Where the Carpathian wall meets the Tisza lowland",
+      "bounds_wsen": [23.05, 48.45, 23.45, 48.85], "relief_m": 1445,
+      "flight": { "height_above_surface_m": 1700, "height_band_m": [1000, 2600], "max_climb_rate_mps": 20 } },
+
+    { "id": "chornohora", "name": "Chornohora", "blurb": "Hoverla and the highest ground in Ukraine",
+      "bounds_wsen": [24.35, 48.05, 24.75, 48.45], "relief_m": 1534,
+      "flight": { "height_above_surface_m": 1700, "height_band_m": [1000, 2600], "max_climb_rate_mps": 20 } },
+
+    { "id": "crimea-yaila", "name": "Crimean Yaila", "blurb": "Limestone plateau falling straight to the Black Sea",
+      "bounds_wsen": [34.05, 44.40, 34.45, 44.80], "relief_m": 1539,
+      "flight": { "height_above_surface_m": 1700, "height_band_m": [1000, 2600], "max_climb_rate_mps": 20 } },
+
+    { "id": "carpathians", "name": "Gorgany", "blurb": "The deepest relief of the set: 1.6 km from valley to summit",
+      "bounds_wsen": [24.05, 48.05, 24.45, 48.45], "relief_m": 1626,
+      "flight": { "height_above_surface_m": 1700, "height_band_m": [1000, 2600], "max_climb_rate_mps": 20 } }
+  ]
+}

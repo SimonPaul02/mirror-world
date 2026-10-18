@@ -26,3 +26,6 @@ terrain/generated/
 
 # Static replay assets prepared from the versioned terrain package
 public/trajectory/
+
+# Fetched flight areas; rebuild with scripts/fetch-regions.mjs
+terrain/regions/
