@@ -16,19 +16,10 @@ The sensor data should plausibly follow the same underlying scenario: position c
 
 **Crossing RF bearings and estimating a trajectory are not mandatory challenge outputs.** They are a useful validation and demonstration: if the generated measurements reconstruct a plausible track near truth, the data is more convincing. Two receivers are an example in the brief, not a requirement.
 
-## Team ownership
-
-- **Arda:** drone model and trajectory; supplies the drone's timestamped true positions and altitude.
-- **Sam:** receiver placement/configuration, RF sensor modeling, synthetic measurements, observation associations, and localization/tracking validation. Sam combines drone truth and receiver truth in the final scenario export.
-- **Simone:** terrain selection and terrain data; helps Sam check receiver placement against the selected terrain.
-- **Ygit:** UI and interfaces.
-
-Arda's export contains the drone trajectory only. Sam generates the sensors and their readings.
-
 ## My priorities and current status
 
 - [x] **Draft the shared data contract.** The `Scenario .json` download contains ENU receiver positions, a common sample clock, drone truth, RF observations, and associations. `README_RF_FUSION.md` documents it.
-- [ ] **Confirm the contract with teammates.** Arda supplies the timestamped trajectory and altitude; Simone confirms the terrain area/provider; Sam chooses/configures receiver sites; Ygit confirms the export/UI handoff. These people have not yet confirmed the contract.
+- [ ] **Confirm the contract with teammates.** Ard supplies the timestamped trajectory and altitude; Simone confirms the terrain area/provider and receiver sites; Ygit confirms the export/UI handoff. These people have not yet confirmed the contract.
 - [ ] **Import Arda's trajectory export.** Accept the `drone_trajectory.json` contract below and feed its sampled positions to the RF generator. The current browser capture uses this repo's own live flight simulation; importing Arda's file is still pending.
 - [x] **Connect the existing RF model to scenario capture.** `src/signals.ts` generates per-receiver power, noisy global bearings, and missed detections from the flown truth. The capture records these with a fixed seed. Each report now records how much of its RF path had terrain samples.
 - [x] **Implement a configurable scenario export.** URL parameters select seed, route variant (`full`, `south`, or seeded waypoint variation), duration, and sample interval. The download includes configuration, truth, observations, misses, and a separate observation-to-object answer key. A presentation run must cover at least a few minutes; the 30-second fixture is only a development test.
