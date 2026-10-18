@@ -9,6 +9,15 @@ import { LocalTerrainProvider } from './local-terrain';
 import { sampleGrid, replayState, type Grid, type TruthState } from './replay-math';
 import { MQ9_MODEL } from './models';
 
+/** The movement block of a generator config; vertical fields exist per mode. */
+interface Movement {
+  altitude_mode: 'constant_egm2008_height' | 'smooth_random_agl';
+  max_climb_rate_mps?: number;
+  altitude_change_interval_s?: number;
+  height_band_m?: [number, number];
+  height_step_m?: number;
+}
+
 const el = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
 const asset = (name: string) => `${import.meta.env.BASE_URL}trajectory/${name}`;
 async function get(name: string) {
@@ -33,7 +42,7 @@ async function main() {
   let end = JulianDate.addSeconds(start, duration, new JulianDate());
   const base = await TileMapServiceImageryProvider.fromUrl(buildModuleUrl('Assets/Textures/NaturalEarthII'));
   const viewer = new Viewer('cesium', { baseLayer: false,
-    terrainProvider: new LocalTerrainProvider(surface, geoid, manifest.attribution),
+    terrainProvider: new LocalTerrainProvider(surface, geoid, manifest.attribution, 4),
     animation:false,timeline:false,baseLayerPicker:false,geocoder:false,homeButton:false,
     sceneModePicker:false,navigationHelpButton:false,fullscreenButton:false,
     selectionIndicator:false,infoBox:false,shouldAnimate:false });
@@ -41,7 +50,6 @@ async function main() {
   viewer.scene.globe.baseColor = Color.fromCssColorString('#1b3445');
   viewer.scene.globe.depthTestAgainstTerrain = true;
   viewer.scene.globe.enableLighting = false;
-  viewer.scene.verticalExaggeration = 1;
   const shade = await (await fromArrayBuffer(shadeBytes)).getImage();
   const shadeValues = await shade.readRasters({samples:[0],interleave:true}) as Uint8Array;
   const canvas = document.createElement('canvas'); canvas.width = shade.getWidth(); canvas.height = shade.getHeight();
@@ -53,6 +61,14 @@ async function main() {
   }
   ctx.putImageData(pixels,0,0);
   const [w,s,e,n] = manifest.grid.pixel_edge_bounds_wsen;
+
+  // The Copernicus tile holds 96 m of relief spread over 44 km — a 0.2% slope.
+  // Rendered at true scale from any useful viewing distance that is a flat
+  // plane, which is why the scene reads as a 2D map even though it is real
+  // terrain. Heights are orthometric (EGM2008), so scaling them before the
+  // geoid is added exaggerates about mean sea level. LocalTerrainProvider
+  // applies exactly the same factor to the ground.
+  let exaggeration = 4;
   const localShade = viewer.imageryLayers.addImageryProvider(await SingleTileImageryProvider.fromUrl(
     canvas.toDataURL(), {rectangle:Rectangle.fromDegrees(w,s,e,n), credit:manifest.attribution}));
   let satellite: ReturnType<typeof viewer.imageryLayers.addImageryProvider> | undefined;
@@ -75,23 +91,46 @@ async function main() {
   viewer.clock.multiplier = 20;
   let active = false;
   const at = (time: JulianDate) => replayState(states, JulianDate.secondsDifference(time,start));
+  const sample = (elapsed: number) => replayState(states, elapsed);
   const xyz = (state: TruthState, ground=false) => Cartesian3.fromDegrees(state.longitude_deg,state.latitude_deg,
-    (ground ? sampleGrid(surface,state.longitude_deg,state.latitude_deg) : state.altitude_egm2008_m) +
+    (ground ? sampleGrid(surface,state.longitude_deg,state.latitude_deg) : state.altitude_egm2008_m) * exaggeration +
     sampleGrid(geoid,state.longitude_deg,state.latitude_deg));
+  /**
+   * Flight-path angle, for pointing the nose along the climb. The true angle is
+   * only a few degrees and reads as level, but matching the fully exaggerated
+   * path overshoots to a 30-degree zoom climb. The square root splits the
+   * difference and tracks the slider, and the clamp keeps a steep leg from ever
+   * looking like a fighter. The window smooths out per-sample noise.
+   */
+  const PITCH_WINDOW_S = 2;
+  const MAX_PITCH = CMath.toRadians(18);
+  const climbAngle = (time: JulianDate) => {
+    const t = JulianDate.secondsDifference(time,start);
+    const from = Math.max(0,t-PITCH_WINDOW_S), to = Math.min(duration,t+PITCH_WINDOW_S);
+    if (to <= from) return 0;
+    const rise = (sample(to).altitude_egm2008_m - sample(from).altitude_egm2008_m) * Math.sqrt(exaggeration);
+    const run = sample(t).ground_speed_mps * (to - from);
+    if (run <= 0) return 0;
+    return Math.max(-MAX_PITCH, Math.min(MAX_PITCH, Math.atan2(rise,run)));
+  };
   const aircraft = viewer.entities.add({ name:'Synthetic aircraft',
     position:new CallbackPositionProperty(time => active ? xyz(at(time ?? viewer.clock.currentTime)) : undefined,false),
     orientation:new CallbackProperty(time => {
       if (!active) return undefined;
-      const state = at(time ?? viewer.clock.currentTime);
-      return Transforms.headingPitchRollQuaternion(xyz(state),new HeadingPitchRoll(CMath.toRadians(state.heading_deg)+MQ9_MODEL.noseOffset,0,0));
+      const now = time ?? viewer.clock.currentTime;
+      const state = at(now);
+      return Transforms.headingPitchRollQuaternion(xyz(state),
+        new HeadingPitchRoll(CMath.toRadians(state.heading_deg)+MQ9_MODEL.noseOffset,climbAngle(now),0));
     },false),
-    model:{uri:MQ9_MODEL.uri,scale:1,minimumPixelSize:64,maximumScale:400},
+    model:{uri:MQ9_MODEL.uri,scale:1,minimumPixelSize:48,maximumScale:60},
     point:{pixelSize:7,color:Color.WHITE,outlineColor:Color.CYAN,outlineWidth:2},
     label:{text:'AIRCRAFT 001',font:'11px sans-serif',pixelOffset:new Cartesian2(0,-34),
       fillColor:Color.WHITE,style:LabelStyle.FILL_AND_OUTLINE,outlineWidth:3,verticalOrigin:VerticalOrigin.BOTTOM},
     viewFrom:new Cartesian3(-1800,-1800,1300)
   });
-  const route = viewer.entities.add({polyline:{positions:states.map(state=>xyz(state)),width:3,
+  let routePositions: Cartesian3[] = [];
+  const rebuildRoute = () => { routePositions = states.map(state=>xyz(state)); };
+  const route = viewer.entities.add({polyline:{positions:new CallbackProperty(()=>routePositions,false),width:3,
     material:new PolylineGlowMaterialProperty({glowPower:.14,color:Color.fromCssColorString('#68e8e3')})}});
   const tether = viewer.entities.add({polyline:{positions:new CallbackProperty(time=>{
     if (!active) return [];
@@ -109,12 +148,26 @@ async function main() {
         style:LabelStyle.FILL_AND_OUTLINE,outlineWidth:3}}));
   }
   runEntities.forEach(entity => { entity.show = false; });
+  const exagInput = el<HTMLInputElement>('exag'), exagOut = el('exag-out');
+  const setExaggeration = (value: number) => {
+    exaggeration = value;
+    exagOut.textContent = `${value.toFixed(1)}\u00d7`;
+    // A new provider instance is what invalidates the quadtree and re-tiles.
+    viewer.terrainProvider = new LocalTerrainProvider(surface,geoid,manifest.attribution,value);
+    rebuildRoute();
+    viewer.scene.requestRender();
+  };
+  // Label on drag, re-tile on release: retiling on every input event would
+  // throw away terrain the viewer is still building.
+  exagInput.oninput = () => { exagOut.textContent = `${Number(exagInput.value).toFixed(1)}\u00d7`; };
+  exagInput.onchange = () => { setExaggeration(Number(exagInput.value)); };
+  setExaggeration(Number(exagInput.value));
   const follow = el<HTMLButtonElement>('follow');
   function overview() {
     viewer.trackedEntity = undefined; follow.setAttribute('aria-pressed','false');
     // An oblique view reveals the route's altitude without exaggerating the DSM.
     const center=Cartesian3.fromDegrees((w+e)/2,(s+n)/2,0);
-    viewer.camera.lookAt(center,new HeadingPitchRange(0,CMath.toRadians(-60),54000));
+    viewer.camera.lookAt(center,new HeadingPitchRange(CMath.toRadians(-24),CMath.toRadians(-30),46000));
     viewer.camera.lookAtTransform(Matrix4.IDENTITY);
   }
   el('overview').onclick = overview;
@@ -153,6 +206,12 @@ async function main() {
   const cancel = el<HTMLButtonElement>('cancel-generation');
   let worker: Worker | undefined, requestId = 0, downloadUrl: string | undefined;
   const number = (id: string) => el<HTMLInputElement>(`input-${id}`).valueAsNumber;
+  const vary = el<HTMLInputElement>('input-vary');
+  const varyFields = ['climb','altcommand','bandlow','bandhigh','step'];
+  // Required-but-disabled inputs are skipped by reportValidity, which is what
+  // keeps the constant-altitude path from tripping over the vertical fields.
+  const syncVary = () => { for (const id of varyFields) el<HTMLInputElement>(`input-${id}`).disabled=!vary.checked; };
+  vary.addEventListener('change',syncVary);
   const put = (id: string, value: string | number) => { el<HTMLInputElement>(`input-${id}`).value = String(value); };
   const [west, south, east, north] = bounds;
   for (const [id, min, max] of [['lon',west,east],['lat',south,north]] as const) {
@@ -169,7 +228,20 @@ async function main() {
     put('height',i.initial_state.height_above_surface_m); put('start',i.simulation.start_time);
     put('interval',i.simulation.output_interval_s); put('turn',i.movement.max_heading_rate_deg_s);
     put('command',i.movement.heading_change_interval_s);
-    el<HTMLInputElement>('input-height').min=String(i.validation.minimum_surface_clearance_m);
+    // The template may ship either altitude law, so fall back to sane values
+    // rather than leaving the vertical fields empty and failing form validity.
+    const m=i.movement as Movement;
+    vary.checked=m.altitude_mode === 'smooth_random_agl';
+    put('climb',m.max_climb_rate_mps ?? 5);
+    put('altcommand',m.altitude_change_interval_s ?? 40);
+    put('bandlow',m.height_band_m?.[0] ?? i.validation.minimum_surface_clearance_m * 3);
+    put('bandhigh',m.height_band_m?.[1] ?? 2000);
+    put('step',m.height_step_m ?? 350);
+    const floor=String(i.validation.minimum_surface_clearance_m);
+    el<HTMLInputElement>('input-height').min=floor;
+    el<HTMLInputElement>('input-bandlow').min=floor;
+    el<HTMLInputElement>('input-bandhigh').min=floor;
+    syncVary();
   }
   function clearRun() {
     active=false; viewer.clock.shouldAnimate=false; viewer.trackedEntity=undefined;
@@ -226,6 +298,22 @@ async function main() {
     Object.assign(input.simulation,{seed:number('seed'),duration_s:number('duration'),output_interval_s:number('interval'),
       start_time:el<HTMLInputElement>('input-start').value.trim()});
     Object.assign(input.movement,{max_heading_rate_deg_s:number('turn'),heading_change_interval_s:number('command')});
+    // validateConfig asserts an exact key set per mode, so the vertical fields
+    // have to be removed rather than left behind when the toggle is off.
+    const movement=input.movement as Movement;
+    if (vary.checked) {
+      movement.altitude_mode='smooth_random_agl';
+      movement.max_climb_rate_mps=number('climb');
+      movement.altitude_change_interval_s=number('altcommand');
+      movement.height_band_m=[number('bandlow'),number('bandhigh')];
+      movement.height_step_m=number('step');
+    } else {
+      movement.altitude_mode='constant_egm2008_height';
+      delete movement.max_climb_rate_mps;
+      delete movement.altitude_change_interval_s;
+      delete movement.height_band_m;
+      delete movement.height_step_m;
+    }
     try {
       worker ??= new Worker(new URL('./trajectory-worker.ts',import.meta.url),{type:'module'});
     } catch (error) {
@@ -249,7 +337,7 @@ async function main() {
       start=JulianDate.fromIso8601(states[0]!.timestamp); end=JulianDate.addSeconds(start,duration,new JulianDate());
       viewer.clock.startTime=start.clone(); viewer.clock.stopTime=end.clone(); viewer.clock.currentTime=start.clone();
       viewer.clock.shouldAnimate=false;
-      route.polyline!.positions=new ConstantProperty(states.map(state=>xyz(state)));
+      rebuildRoute();
       runEntities.forEach(entity=>{entity.show=true;});
       active=true; timeline.max=String(duration); timeline.value='0'; timeline.disabled=false;
       play.disabled=false; follow.disabled=false; el<HTMLButtonElement>('restart').disabled=false;

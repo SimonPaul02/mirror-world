@@ -11,7 +11,15 @@ export class LocalTerrainProvider {
   readonly hasVertexNormals = false;
   readonly availability: TileAvailability | undefined = undefined;
   private readonly tileSize = 65;
-  constructor(private surface: Grid, private geoid: Grid, attribution: string) {
+  /**
+   * `exaggeration` scales the orthometric surface, which is exaggeration about
+   * mean sea level. Doing it here rather than through `Scene.verticalExaggeration`
+   * keeps Cesium from applying a second, automatic factor to models (it
+   * exaggerates models but not points or polylines), so every entity and the
+   * ground agree on one transform.
+   */
+  constructor(private surface: Grid, private geoid: Grid, attribution: string,
+    private readonly exaggeration = 1) {
     this.credit = new Credit(attribution);
   }
   getLevelMaximumGeometricError(level: number): number {
@@ -28,7 +36,7 @@ export class LocalTerrainProvider {
       for (let col = 0; col < this.tileSize; col++) {
         const lon = CMath.toDegrees(rect.west + rect.width * col / (this.tileSize - 1));
         if (contains(this.surface, lon, lat)) buffer[row * this.tileSize + col] =
-          sampleGrid(this.surface, lon, lat) + sampleGrid(this.geoid, lon, lat);
+          sampleGrid(this.surface, lon, lat) * this.exaggeration + sampleGrid(this.geoid, lon, lat);
       }
     }
     return Promise.resolve(new HeightmapTerrainData({ buffer, width: this.tileSize,
