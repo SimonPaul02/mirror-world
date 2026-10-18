@@ -1,104 +1,53 @@
 <!doctype html>
 <html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Mirror World — Donbas scenario</title>
-  </head>
-  <body>
-    <div id="cesium" class="cesium-root"></div>
-
-    <div id="boot" class="boot">
-      <div class="boot__spinner"></div>
-      <p class="boot__text">Loading globe…</p>
-    </div>
-
-    <!-- Airframe data -->
-    <section id="spec" class="card card--left">
-      <header class="card__head">
-        <h1>MQ-9 <span class="card__sub">Reaper</span></h1>
-        <button id="spec-toggle" class="icon-btn" title="Toggle specifications">—</button>
-      </header>
-      <p class="card__role">Medium-altitude long-endurance UCAV</p>
-      <dl id="spec-list" class="rows"></dl>
-    </section>
-
-    <div class="rail rail--right">
-      <!-- Camera controls -->
-      <section id="help" class="card">
-        <header class="card__head">
-          <h2>Free camera</h2>
-          <button id="help-toggle" class="icon-btn" title="Toggle controls (H)">?</button>
-        </header>
-        <dl id="help-keys" class="rows"></dl>
-      </section>
-
-      <!-- Scenario state -->
-      <section id="mission" class="card">
-        <header class="card__head">
-          <h1>Mission <span class="card__sub">Donbas</span></h1>
-        </header>
-        <p id="scenario-name" class="card__role">—</p>
-        <dl id="mission-list" class="rows"></dl>
-      </section>
-    </div>
-
-    <!-- TAK feed -->
-    <section id="cot" class="card card--feed">
-      <header class="card__head">
-        <h1>TAK feed <span class="card__sub">Cursor on Target</span></h1>
-        <button id="cot-toggle" class="icon-btn" title="Toggle the feed (K)">—</button>
-      </header>
-      <div class="feed__status">
-        <span id="cot-state" class="badge">—</span>
-        <span id="cot-count" class="mono">0 events</span>
-      </div>
-      <pre id="cot-xml" class="feed__xml">waiting for the first report…</pre>
-      <div class="feed__actions">
-        <button id="cot-download" class="btn">Download .cot</button>
-        <button id="cot-manifest" class="btn btn--ghost">Manifest .json</button>
-        <button id="scenario-download" class="btn btn--ghost">Scenario .json</button>
-      </div>
-      <p id="scenario-export-status" class="card__role" aria-live="polite"></p>
-    </section>
-
-    <!-- Telemetry -->
-    <section id="hud" class="hud">
-      <div class="hud__row">
-        <div class="gauge">
-          <span class="gauge__k">ALT</span><span id="hud-alt" class="gauge__v">—</span><span class="gauge__u">ft</span>
+<head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width, initial-scale=1.0"/><title>Mirror World · Odesa trajectory</title></head>
+<body>
+  <div id="cesium"></div>
+  <header class="topbar"><div><span class="eyebrow">MIRROR WORLD / TRAJECTORY LAB</span><h1>Odesa <span>terrain replay</span></h1></div><span class="badge">SYNTHETIC TRUTH</span></header>
+  <aside class="panel">
+    <div class="section-label">01 / LOCAL TERRAIN</div><h2>Coast meets flight path</h2>
+    <p class="muted">Copernicus GLO-30 surface · Odesa, Ukraine</p>
+    <div class="legend"><i class="line cyan"></i> Generated trajectory <i class="line amber"></i> Terrain extent</div>
+    <div class="actions"><button id="overview">Overview</button><button id="follow" aria-pressed="false">Follow aircraft</button></div>
+    <label class="toggle"><input type="checkbox" id="satellite"/> Satellite imagery <small>online</small></label>
+    <label class="toggle"><input type="checkbox" id="shade" checked/> Local surface shading</label>
+    <div class="divider"></div><div class="section-label">02 / CONFIGURE RUN</div>
+    <form id="run-form">
+      <fieldset id="run-fields" disabled>
+        <label class="field">Preset<select id="preset"><option value="42">Baseline · seed 42</option><option value="43">Alternate · seed 43</option><option value="custom">Custom settings</option></select></label>
+        <div class="form-grid">
+          <label class="field wide">Scenario ID<input id="input-scenario" type="text" value="ukraine_demo_001" required/></label>
+          <label class="field wide">Object ID<input id="input-object" type="text" required/></label>
+          <label class="field">Seed<input id="input-seed" type="number" min="0" max="4294967295" step="1" required/></label>
+          <label class="field">Duration (s)<input id="input-duration" type="number" min="0.1" max="86399.9" step="0.1" required/></label>
+          <label class="field">Start longitude<input id="input-lon" type="number" step="any" required/></label>
+          <label class="field">Start latitude<input id="input-lat" type="number" step="any" required/></label>
+          <label class="field">Speed (m/s)<input id="input-speed" type="number" min="0.1" step="any" required/></label>
+          <label class="field">Heading (°)<input id="input-heading" type="number" min="0" max="359.999" step="any" required/></label>
+          <label class="field wide">Initial height above surface (m)<input id="input-height" type="number" min="100" step="any" required/></label>
         </div>
-        <div class="gauge">
-          <span class="gauge__k">AGL</span><span id="hud-agl" class="gauge__v">—</span><span class="gauge__u">m</span>
-        </div>
-        <div class="gauge">
-          <span class="gauge__k">TAS</span><span id="hud-tas" class="gauge__v">—</span><span class="gauge__u">km/h</span>
-        </div>
-        <div class="gauge">
-          <span class="gauge__k">V/S</span><span id="hud-vs" class="gauge__v">—</span><span class="gauge__u">ft/min</span>
-        </div>
-        <div class="gauge">
-          <span class="gauge__k">HDG</span><span id="hud-hdg" class="gauge__v">—</span><span class="gauge__u">°</span>
-        </div>
-        <div class="gauge">
-          <span class="gauge__k">THR</span><span id="hud-thr" class="gauge__v">—</span><span class="gauge__u">%</span>
-        </div>
-        <div class="gauge">
-          <span class="gauge__k">FUEL</span><span id="hud-fuel" class="gauge__v">—</span><span class="gauge__u">kg</span>
-        </div>
-        <div class="gauge">
-          <span class="gauge__k">ENDUR</span><span id="hud-endurance" class="gauge__v">—</span><span class="gauge__u">left</span>
-        </div>
-      </div>
-      <div class="hud__row hud__row--sub">
-        <span id="hud-pos" class="mono">—</span>
-        <span id="hud-mission" class="mono">T+00:00:00</span>
-        <span id="hud-mode" class="badge">FOLLOW</span>
-        <span id="hud-warp" class="badge badge--dim">1×</span>
-        <span id="hud-cam" class="mono">—</span>
-      </div>
-    </section>
-
-    <script type="module" src="/src/main.ts"></script>
-  </body>
-</html>
+        <details><summary>Timing and turning</summary><div class="form-grid">
+          <label class="field wide">Start time (UTC ISO)<input id="input-start" type="text" required/></label>
+          <label class="field">Export interval (s)<input id="input-interval" type="number" min="0.1" step="0.1" required/></label>
+          <label class="field">Max turn rate (°/s)<input id="input-turn" type="number" min="0.01" max="180" step="any" required/></label>
+          <label class="field wide">New heading command every (s)<input id="input-command" type="number" min="0.1" step="0.1" required/></label>
+        </div></details>
+        <p class="footnote">Constant speed and absolute altitude. Minimum surface clearance: 100 m. Paths leaving the amber area are rejected; long runs may not fit this crop.</p>
+        <div class="actions"><button id="generate" type="submit">Generate trajectory</button><button id="new-seed" type="button">New seed</button></div>
+      </fieldset>
+      <button id="cancel-generation" type="button" hidden>Cancel generation</button>
+      <p id="generation-status" role="status" aria-live="polite">Loading engine inputs…</p>
+    </form>
+    <div class="divider"></div><div class="section-label">03 / CURRENT STATE</div>
+    <div class="hero"><strong id="clearance">—</strong><span>metres above surface</span></div>
+    <dl><dt>Position / lon, lat</dt><dd id="position">—</dd><dt>Altitude / EGM2008</dt><dd id="altitude">—</dd><dt>Surface / EGM2008</dt><dd id="surface">—</dd><dt>Speed / heading</dt><dd id="motion">—</dd><dt>UTC</dt><dd id="utc">—</dd></dl>
+    <div class="divider"></div><div class="section-label">04 / RUN CHECK</div><p id="run-info">Generate a trajectory to inspect its validation results.</p>
+    <a id="download-receiver" class="download" aria-disabled="true" download="ground_truth.json">Download receiver ground truth ↗</a>
+    <a id="download-truth" class="download" aria-disabled="true" download="trajectory_truth.json">Download full trajectory JSON ↗</a>
+    <p class="footnote">Heights converted with EGM2008 geoid for globe display. Surface relief is 1×. Outside the amber boundary: flat globe, no local elevation data.</p>
+  </aside>
+  <div class="map-note">Drag to orbit · Scroll to zoom · Ctrl + drag to tilt</div>
+  <footer class="playback"><button id="play" disabled>Play</button><button id="restart" disabled title="Restart replay">↺</button><span id="elapsed">Not generated</span><input id="timeline" aria-label="Replay time" type="range" min="0" max="300" value="0" step="0.1" disabled/><label>Speed <select id="speed"><option value="1">1×</option><option value="5">5×</option><option value="20" selected>20×</option><option value="60">60×</option></select></label></footer>
+  <div id="loading" role="status">Loading local Odesa surface and trajectory…</div>
+  <script type="module" src="/src/replay-main.ts"></script>
+</body></html>

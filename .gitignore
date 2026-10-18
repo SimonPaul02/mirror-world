@@ -18,5 +18,11 @@ public/models/*.gltf
 # Scratch build output
 check.tmp.mjs
 
+# Reproducible trajectory exports
+terrain/generated/
+
 # Organiser-provided challenge brief: kept local rather than redistributed
 *.pdf
+
+# Static replay assets prepared from the versioned terrain package
+public/trajectory/

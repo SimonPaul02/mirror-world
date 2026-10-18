@@ -4,6 +4,8 @@ Working agreement: keep this checklist current and automatically commit complete
 
 Latest verification: app production build passed; 10 sensor tests and five Python tests passed. `npm run demo:rf` now imports a one-minute mock of Arda's flight, generates 85 detections and 35 missing-detection diagnostics, and writes the complete scenario, validation reports, and two plots. RF1 detects all 60 samples; a synthetic ridge blocks RF2 at seconds 11–45. Tracking RMSE is 73.6 m across all 60 frames, including 35 prediction-only frames. A live browser capture with real terrain is still pending.
 
+Pull integration verification: both application pages build, all 16 incoming terrain/trajectory tests pass with Node 22.23.3, and the 15 sensor/tracking tests still pass. The RF generator has not yet been connected to the newly available real Odesa inputs.
+
 ## What the challenge requires
 
 Build a **configurable synthetic scenario generator** set on **real terrain in Ukraine**. For each scenario, output:
@@ -25,6 +27,7 @@ The sensor data should plausibly follow the same underlying scenario: position c
 - [x] **Connect the existing RF model to scenario capture.** `src/signals.ts` generates per-receiver power, noisy global bearings, and missed detections from the flown truth. The capture records these with a fixed seed. Each report now records how much of its RF path had terrain samples.
 - [x] **Implement a configurable scenario export.** URL parameters select seed, route variant (`full`, `south`, or seeded waypoint variation), duration, and sample interval. The download includes configuration, truth, observations, misses, and a separate observation-to-object answer key. A presentation run must cover at least a few minutes; the 30-second fixture is only a development test.
 - [x] **Add structural validation.** Export warnings check duration, real-terrain provider availability, terrain path sample coverage, timestamps, bearings, IDs, and associations.
+- [ ] **Integrate the pulled Odesa terrain/trajectory package.** The team has now supplied `terrain/odesa/`, a deterministic trajectory engine, and an ellipsoidal-height receiver export adapter. Connect these real inputs to the RF generator; the synthetic mock remains a separate demo. The Odesa viewer is `/`; the existing RF viewer moved to `/scenario.html`.
 - [ ] **Verify a live terrain-backed capture.** Run the browser with loaded real Ukrainian terrain for at least two minutes, export JSON, inspect the warnings and signal behavior, and fix any terrain coverage gaps. This has not yet been run in this workspace.
 - [ ] **Exercise Ard's route variants.** Verify at least a straight and a curved route once Ard supplies them. Current app choices are the existing full Donbas circuit and a shorter southern circuit.
 - [x] **Demonstrate independent 2D localization.** `rf_fusion` intersects simultaneous forward AoA rays and rejects weak geometry; it does not read truth or associations.

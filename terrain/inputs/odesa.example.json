@@ -1,0 +1,42 @@
+{
+  "schema_version": "1.0",
+  "purpose": "offline_synthetic_trajectory_truth",
+  "terrain_id": "odesa_demo_01",
+  "terrain_manifest": "../odesa/manifest.json",
+  "object_id": "aircraft-001",
+  "initial_state": {
+    "longitude_deg": 30.65,
+    "latitude_deg": 46.5,
+    "height_above_surface_m": 1500,
+    "ground_speed_mps": 50,
+    "heading_deg": 90
+  },
+  "simulation": {
+    "start_time": "2026-10-18T12:00:00Z",
+    "duration_s": 300,
+    "output_interval_s": 1,
+    "end_inclusive": false,
+    "seed": 42
+  },
+  "movement": {
+    "model": "generic_synthetic",
+    "heading_mode": "smooth_random",
+    "speed_mode": "constant",
+    "altitude_mode": "constant_egm2008_height",
+    "max_heading_rate_deg_s": 1,
+    "heading_change_interval_s": 30
+  },
+  "validation": {
+    "minimum_surface_clearance_m": 100,
+    "out_of_bounds": "reject",
+    "missing_elevation": "reject"
+  },
+  "output": {
+    "format": "json",
+    "content": "trajectory_truth",
+    "horizontal_crs": "EPSG:4326",
+    "vertical_crs": "EPSG:3855",
+    "altitude_field": "altitude_egm2008_m",
+    "surface_clearance_field": "height_above_surface_m"
+  }
+}

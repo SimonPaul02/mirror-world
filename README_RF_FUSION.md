@@ -1,8 +1,11 @@
 # RF scenario export and trajectory demo
 
+The Odesa trajectory generator is at `/`; the original RF simulation and its
+Scenario JSON export are at `/scenario.html`.
+
 ## Run the one-minute mock now
 
-Use Node 20.19+ or 22.12+ and the Python dependencies below. After `npm ci`:
+Use Node 22.18+ and the Python dependencies below. The pulled terrain tests import TypeScript directly and need a recent Node runtime. After `npm ci`:
 
 ```
 npm run demo:rf
@@ -36,7 +39,7 @@ Run `npm run test:sensors` and `python3 -m pytest -q` for the sensor and trackin
 Install with `npm ci`, then run `npm run dev`. Open a URL such as:
 
 ```
-http://localhost:3000/?seed=42&route=full&duration_s=180&sample_s=2
+http://localhost:3000/scenario.html?seed=42&route=full&duration_s=180&sample_s=2
 ```
 
 `route` accepts `full`, `south`, or `varied`. The `varied` option perturbs the Donbas waypoints and altitudes from the seed, producing a different flight path; `seed` also controls RF noise. `duration_s` is 120–21600 seconds; `sample_s` is 1–60 seconds. The defaults are the full Donbas route, seed 20261103, 180 seconds, and 2-second samples. Press **T** to speed up the simulation. After it has run for a few minutes, press **Scenario .json** in the TAK panel.
