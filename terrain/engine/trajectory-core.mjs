@@ -7,6 +7,23 @@ const DEG = Math.PI / 180;
 const wrap = (heading) => ((heading % 360) + 360) % 360;
 const turnDifference = (target, current) => ((target - current + 540) % 360) - 180;
 
+// Holding the rate limit until the command is met and then stopping dead is the
+// fastest way to get there, but it leaves a corner at both ends of every
+// manoeuvre. Inside these bands the rate backs off smoothly instead, which
+// rounds the track and the vertical profile without loosening either limit.
+const HEADING_EASE_DEG = 30;
+const HEIGHT_EASE_M = 150;
+// Commands are drawn inside this share of what the rate limit can deliver in a
+// command interval, so a manoeuvre finishes and the rate eases back to zero
+// before the next command. Drawing the full reachable amount leaves the
+// aircraft still turning when the next one lands, which reverses the rate hard.
+const SETTLE = 0.5;
+// Smoothstep: zero slope at both ends, so the rate has no discontinuity.
+const ease = (error, band) => {
+  const x = Math.min(1, Math.abs(error) / band);
+  return x * x * (3 - 2 * x);
+};
+
 // Mulberry32: fixed draw schedule, independent of exported sample frequency.
 function randomGenerator(seed) {
   let state = seed >>> 0;
@@ -33,10 +50,24 @@ export function generateTrajectoryCore(input, terrain, manifest, hashes) {
   const speed = input.initial_state.ground_speed_mps;
   let lon = input.initial_state.longitude_deg, lat = input.initial_state.latitude_deg;
   let heading = input.initial_state.heading_deg;
-  const altitude = terrain.sample(lon, lat) + input.initial_state.height_above_surface_m;
+  let altitude = terrain.sample(lon, lat) + input.initial_state.height_above_surface_m;
+  // Vertical counterpart of the heading law. Drawn from the same stream, so a
+  // seed picks the whole shape of the flight rather than only its ground track.
+  const vertical = input.movement.altitude_mode === "smooth_random_agl";
+  const [bandLow, bandHigh] = vertical ? input.movement.height_band_m : [0, 0];
+  const climbRate = vertical ? input.movement.max_climb_rate_mps : 0;
+  // Same reachability rule as the heading walk: a step the climb rate cannot
+  // fly within the interval saturates the rate and reverses hard at the next
+  // command. The configured step is the ceiling; physics sets the rest.
+  const heightStep = vertical
+    ? Math.min(input.movement.height_step_m, climbRate * input.movement.altitude_change_interval_s * SETTLE)
+    : 0;
+  let targetHeight = input.initial_state.height_above_surface_m;
   const durationMs = Math.round(input.simulation.duration_s * 1000);
   const outputMs = Math.round(input.simulation.output_interval_s * 1000);
   const commandMs = Math.round(input.movement.heading_change_interval_s * 1000);
+  const altitudeMs = vertical ? Math.round(input.movement.altitude_change_interval_s * 1000) : 0;
+  const reachableDeg = input.movement.max_heading_rate_deg_s * input.movement.heading_change_interval_s * SETTLE;
   const startMs = Date.parse(input.simulation.start_time);
   // At most half of the smaller grid spacing per internal movement step.
   const maxAbsLat = Math.max(Math.abs(terrain.bounds[1]), Math.abs(terrain.bounds[3]));
@@ -51,13 +82,18 @@ export function generateTrajectoryCore(input, terrain, manifest, hashes) {
   const states = [];
   let terminalState;
 
-  function inspect(elapsedMs) {
+  function inspect(elapsedMs, stepSeconds = 0) {
     let surface;
     try {
       surface = terrain.sample(lon, lat);
     } catch (error) {
       if (error instanceof TerrainError) error.details.elapsed_s = elapsedMs / 1000;
       throw error;
+    }
+    if (vertical && stepSeconds > 0) {
+      const error = surface + targetHeight - altitude;
+      const limit = climbRate * stepSeconds * ease(error, HEIGHT_EASE_M);
+      altitude += Math.max(-limit, Math.min(limit, error));
     }
     const clearance = altitude - surface;
     if (clearance < input.validation.minimum_surface_clearance_m) {
@@ -78,22 +114,38 @@ export function generateTrajectoryCore(input, terrain, manifest, hashes) {
       surface_elevation_egm2008_m: surface,
       height_above_surface_m: clearance,
       ground_speed_mps: speed,
-      heading_deg: heading
+      heading_deg: heading,
+      ...(vertical ? { commanded_height_above_surface_m: targetHeight } : {})
     };
   }
 
   let current = inspect(0);
   for (let elapsedMs = 0; elapsedMs < durationMs; elapsedMs += TICK_MS) {
     if (elapsedMs % outputMs === 0) states.push(current);
-    if (elapsedMs % commandMs === 0) targetHeading = random() * 360;
+    // A command the turn rate cannot reach within the interval is not a
+    // destination, it is a direction to lean into: the aircraft holds the rate
+    // limit for the whole leg and corners whenever the error changes sign.
+    // Drawing inside the reachable arc makes every command attainable, so the
+    // easing above actually engages and the track curves instead of folding.
+    if (elapsedMs % commandMs === 0) targetHeading = wrap(heading + (random() * 2 - 1) * reachableDeg);
+    // A bounded walk rather than an independent draw: redrawing uniformly across
+    // the band sends the aircraft diving at its rate limit every command, which
+    // reads as a plunge rather than a flight. Reflecting at the band edges keeps
+    // the walk from loitering against a clamp.
+    if (vertical && elapsedMs % altitudeMs === 0) {
+      let next = targetHeight + (random() * 2 - 1) * heightStep;
+      if (next < bandLow) next = bandLow + (bandLow - next);
+      if (next > bandHigh) next = bandHigh - (next - bandHigh);
+      targetHeight = Math.max(bandLow, Math.min(bandHigh, next));
+    }
     const dt = TICK_MS / 1000 / subdivisions;
     for (let sub = 1; sub <= subdivisions; sub++) {
       const difference = turnDifference(targetHeading, heading);
-      const limit = input.movement.max_heading_rate_deg_s * dt;
+      const limit = input.movement.max_heading_rate_deg_s * dt * ease(difference, HEADING_EASE_DEG);
       const delta = Math.max(-limit, Math.min(limit, difference));
       [lon, lat] = advance(lon, lat, wrap(heading + delta / 2), speed * dt);
       heading = wrap(heading + delta);
-      current = inspect(elapsedMs + sub * TICK_MS / subdivisions);
+      current = inspect(elapsedMs + sub * TICK_MS / subdivisions, dt);
     }
     terminalState = current;
   }
@@ -105,7 +157,10 @@ export function generateTrajectoryCore(input, terrain, manifest, hashes) {
       horizontal_geometry: "spherical Earth", earth_radius_m: EARTH_RADIUS_M,
       clock_tick_s: TICK_MS / 1000, integration_subdivisions_per_tick: subdivisions,
       random_generator: "mulberry32",
-      heading_commands: "uniform [0,360) at fixed command intervals; shortest signed turn with bounded rate"
+      heading_commands: `heading walks by at most max_heading_rate_deg_s * heading_change_interval_s (${reachableDeg} degrees) per command; shortest signed turn with bounded rate, eased within ${HEADING_EASE_DEG} degrees of the command`,
+      altitude_commands: vertical
+        ? `height above surface walks by at most ${heightStep} m per command (height_step_m capped by max_climb_rate_mps * altitude_change_interval_s), reflected into height_band_m; bounded climb rate toward the commanded height, eased within ${HEIGHT_EASE_M} m`
+        : "constant EGM2008 altitude"
     },
     coordinates: manifest.coordinates,
     provenance: {
