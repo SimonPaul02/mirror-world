@@ -1,3 +1,25 @@
+# Odesa trajectory replay
+
+Run `npm run dev`, then open http://127.0.0.1:3000/. Choose a preset or edit
+seed, starting coordinates, speed, heading, height and duration in the map's
+**Configure run** panel. Click **Generate trajectory**, then **Play**.
+Timing and turning options are available under the expandable settings.
+Set Scenario ID and Object ID before generating. Download receiver ground truth
+(`timestamp_s`, WGS84 `lat`/`lon`, ellipsoidal `hae_m`) or the full trajectory
+with its resolved inputs and provenance.
+
+Generation runs in a browser worker using the same engine as the CLI. No server
+restart or JSON-file edit is needed between runs. `predev` and `prebuild` package
+the local terrain and initial form defaults automatically; the built `dist/`
+application can generate paths on static hosting (HTTPS or localhost is required
+for the browser's checksum API). Editing a setting clears the previous run and
+requires regeneration; invalid paths never become playable.
+See [terrain documentation](terrain/README.md) for height conversion and limits.
+
+The original simulator is preserved at `/scenario.html`; its documentation follows.
+
+---
+
 # MQ-9 Reaper Simulator
 
 A CesiumJS simulation of a General Atomics MQ-9 Reaper flying over exact
@@ -93,8 +115,7 @@ nearly-complete base — it never reaches zero while the aircraft is moving.
 The offline Odesa elevation package and synthetic trajectory engine live in
 [`terrain/`](terrain/README.md). Run `npm run trajectory:generate` to create
 `terrain/generated/trajectory_truth.json`, `npm run terrain:validate` to check
-inputs and assets, and `npm run terrain:test` for engine tests. The browser
-simulation is not yet connected to this engine's output.
+inputs and assets, and `npm run terrain:test` for engine tests. The default browser page replays this engine's output over the local Odesa DSM.
 
 ```bash
 npm run typecheck

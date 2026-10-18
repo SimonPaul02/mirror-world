@@ -10,7 +10,7 @@ try {
     limitations: [
       "This command verifies asset hashes and configuration; run trajectory:generate to validate a path.",
       "Zero elevation does not establish water or valid-data classification.",
-      "Vertical reference comes from provider documentation; HAE conversion is not supplied."
+      "Vertical reference comes from provider documentation; the map uses a bundled geoid crop for ellipsoidal display heights."
     ]
   }, null, 2));
 } catch (error) {

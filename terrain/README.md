@@ -125,11 +125,61 @@ ground_speed_mps, heading_deg
 Provenance includes hashes of the elevation bytes and serialized configuration
 and manifest. The versioned model and numerical assumptions are exported too.
 
-The browser still uses its existing AWS Terrain Tiles provider and scenario.
-This engine is callable independently and has no sensor or position-estimation
-outputs. Before connecting its altitude values to Cesium or CoT HAE, implement
-an explicit EGM2008-to-ellipsoidal-height conversion. No geoid grid or vertical
-conversion is bundled.
+Run `npm run dev` and open http://127.0.0.1:3000/ for the Odesa replay.
+The dev/build preparation script packages the rasters, manifest, geoid and
+initial form defaults in ignored `public/trajectory/`. It also writes a CLI
+example export for independent consumers; the map does not load that export.
+`inputs/odesa.example.json` supplies initial defaults, and all subsequent run
+parameters come from the UI. Editing defaults requires preparation and refresh;
+changing UI settings does not.
+
+Use **Configure run → Generate trajectory → Play**. Select seed 42 or 43 presets,
+edit the numerical inputs, or choose **New seed**. Expand **Timing and turning**
+for the UTC start, export interval, turn limit and heading-command interval.
+The presets use the packaged defaults with different seeds, and do not contain
+stored routes. The terrain stays Odesa. Minimum clearance and rejection rules
+are fixed by the packaged contract; longer runs can leave the finite crop.
+
+`src/trajectory-worker.ts` validates the UI payload, verifies the elevation hash,
+loads the raster once, and calls `engine/trajectory-core.mjs`. That same core is
+wrapped by the Node CLI in `engine/trajectory.mjs`. Shared validation and raster
+sampling run in both environments. Browser provenance uses Web Crypto SHA-256;
+serve on localhost or HTTPS. Tests compare the worker's complete export with
+the CLI, including hashes, and exercise changed inputs and rejected paths.
+
+Generating never starts playback automatically. Editing inputs clears the
+previous route, disables playback/download, and requires generation again.
+Failures show the engine error and elapsed time where available. Cancellation
+terminates the worker; a later request starts a fresh worker. This works in both
+Vite development and the static production build, without a generation API.
+
+The map provides play/pause, restart, scrubbing, 1/5/20/60x speed, overview,
+aircraft following, local hillshade and optional online satellite imagery.
+The JSON download is the current successful engine export with `resolved_input`.
+The terminal validation state is appended only in the player to display the
+final interval. Between exported samples, position/heading are interpolated for
+display; displayed clearance is resampled from the local DSM. No new truth
+states or sensor outputs are emitted during playback.
+
+The local terrain provider samples the numeric DSM into Cesium heightmap tiles.
+Both terrain and aircraft display heights use `h = H_EGM2008 + N`, with `N`
+bilinearly sampled from the bundled 13x13 crop of the NGA EGM2008 2.5-minute
+grid (public domain, distributed by PROJ). JSON truth remains EGM2008.
+`scripts/fetch-geoid.mjs` reproduces the crop; after deliberate regeneration,
+verify the source and update the asset checksum in the manifest.
+
+The map uses actual relief (1x); Odesa's surface is relatively flat. Terrain
+rendering is level-of-detail resampled, while clearance readings use the full
+DSM. Beyond the amber footprint the globe is flat, without measured local
+terrain. The dataset edge is not blended into another terrain source. Local
+hillshade NoData is transparent and is never interpreted as a water mask.
+The default map and replay need no external service after package installation.
+Satellite imagery requires internet. The previous browser scenario remains at
+`/scenario.html` with its original terrain provider.
+
+The geoid crop's source and metadata are in `odesa/geoid-egm2008.json`;
+[PROJ's source and license notice](https://cdn.proj.org/us_nga_README.txt).
+This conversion does not establish survey-grade accuracy.
 
 ## Provenance and attribution
 
@@ -146,3 +196,42 @@ under COPERNICUS by the European Union and ESA; all rights reserved.
 
 Data accessed through OpenTopography. Retain provider attribution with
 redistributed data and derived demonstrations.
+
+## Receiver ground-truth adapter
+
+After generating in the map, **Download receiver ground truth** exports exactly
+`scenario_id`, `sample_period_s` and `ground_truth`. Set **Scenario ID** and
+**Object ID** before generating. The full trajectory/provenance export remains
+available as a second download. Both downloads are invalidated by input changes.
+
+Each receiver sample contains `timestamp_s`, `object_id`, `lat`, `lon`, `hae_m`.
+The contract is recorded in `receiver-ground-truth.schema.json`:
+
+- `timestamp_s` is elapsed seconds from scenario start, not Unix time. The UTC
+  epoch remains in the full export's `resolved_input.simulation.start_time`.
+- `sample_period_s` equals the selected export interval, not playback speed or
+  the internal integration step. Samples begin at zero; the separate terminal
+  validation state is excluded. A 300-second run at 1 Hz exports t=0…299.
+- Coordinates are WGS84 decimal degrees; IDs are preserved.
+- `hae_m = altitude_egm2008_m + N(lon, lat)`, where N is bilinearly sampled from
+  the checksum-verified local EGM2008 geoid crop. No constant offset or surface
+  clearance substitution is used. Out-of-grid/nonfinite values are rejected.
+- The adapter requires a validated trajectory in the expected CRS and regular
+  time spacing. Structural schema validation alone does not check time cadence.
+- The receiver export does not carry the source provenance fields; retain its
+  full trajectory export alongside it when provenance is needed.
+
+CLI conversion (default scenario ID `ukraine_demo_001`):
+
+```bash
+npm run trajectory:generate
+npm run trajectory:export-receiver
+# Optional explicit source, scenario ID and destination:
+npm run trajectory:export-receiver -- terrain/generated/trajectory_truth.json ukraine_demo_002 /tmp/ground_truth.json
+```
+
+Default output: `terrain/generated/ground_truth.json`. A failed conversion exits
+nonzero and leaves any earlier output unchanged. The CLI and browser worker use
+`engine/receiver-adapter.mjs`; the CLI's bundled geoid covers the Odesa area only.
+The contract above is implemented and tested; no external receiver has been
+exercised in this repository.

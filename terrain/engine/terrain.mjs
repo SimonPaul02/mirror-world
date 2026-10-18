@@ -1,4 +1,4 @@
-import assert from "node:assert/strict";
+import assert from "./assert.mjs";
 import { fromArrayBuffer } from "geotiff";
 
 export class TerrainError extends Error {

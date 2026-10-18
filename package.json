@@ -6,16 +6,18 @@
   "description": "MQ-9 Reaper flight simulation on a CesiumJS globe with a free observer camera",
   "scripts": {
     "postinstall": "node scripts/copy-cesium-assets.mjs && node scripts/make-mq9.mjs",
-    "predev": "node scripts/copy-cesium-assets.mjs && node scripts/make-mq9.mjs",
+    "predev": "node scripts/copy-cesium-assets.mjs && node scripts/make-mq9.mjs && node scripts/prepare-trajectory.mjs",
     "dev": "vite",
-    "prebuild": "node scripts/copy-cesium-assets.mjs && node scripts/make-mq9.mjs",
+    "prebuild": "node scripts/copy-cesium-assets.mjs && node scripts/make-mq9.mjs && node scripts/prepare-trajectory.mjs",
     "build": "tsc --noEmit && vite build",
     "preview": "vite preview",
     "typecheck": "tsc --noEmit",
     "terrain:validate": "node terrain/validate.mjs",
     "trajectory:generate": "node terrain/generate.mjs",
     "terrain:test": "node --test terrain/tests/*.test.mjs",
-    "model:mq9": "node scripts/make-mq9.mjs"
+    "model:mq9": "node scripts/make-mq9.mjs",
+    "replay:prepare": "node scripts/prepare-trajectory.mjs",
+    "trajectory:export-receiver": "node terrain/export-receiver.mjs"
   },
   "dependencies": {
     "cesium": "^1.146.0",

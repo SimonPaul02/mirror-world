@@ -85,6 +85,14 @@
         30.549861100000015,
         46.7001389
       ]
+    },
+    "geoid_undulation": {
+      "path": "geoid-egm2008.json",
+      "sha256": "a17d8a7404d3cacc613603d5d736fa9ef6b93fb53e6c474b26a5acb09e16766d",
+      "size_bytes": 4645,
+      "source_url": "https://cdn.proj.org/us_nga_egm08_25.tif",
+      "license": "Public Domain",
+      "role": "display conversion only; ellipsoidal height = EGM2008 height + geoid undulation"
     }
   },
   "inspection": {
@@ -109,13 +117,15 @@
     "negative_elevation": "preserve",
     "water_mask_available": false,
     "surface_clearance_name": "height_above_surface_m",
-    "ellipsoidal_height_conversion_available": false
+    "ellipsoidal_height_conversion_available": true
   },
   "attribution": "© DLR e.V. 2010-2014 and © Airbus Defence and Space GmbH 2014-2018 provided under COPERNICUS by the European Union and ESA; all rights reserved",
   "integration": {
-    "status": "offline_trajectory_engine_ready",
-    "current_app_uses": "AWS Terrain Tiles via src/terrain.ts; scenario in src/scenario.ts",
-    "runtime_connected": false,
-    "trajectory_engine_available": true
+    "status": "local_terrain_replay_ready",
+    "current_app_uses": "Odesa local DSM and trajectory_truth at /; original scenario at /scenario.html",
+    "runtime_connected": true,
+    "trajectory_engine_available": true,
+    "display_vertical_reference": "WGS84 ellipsoid; EGM2008 heights plus local NGA geoid undulation",
+    "display_terrain_outside_coverage": "flat ellipsoid; not measured terrain"
   }
 }
