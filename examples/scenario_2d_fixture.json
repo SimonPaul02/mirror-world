@@ -1,0 +1,874 @@
+{
+  "scenario_id": "ukraine_2d_rf_mvp_fixture",
+  "world_frame": {
+    "type": "local_enu",
+    "distance_unit": "m",
+    "time_unit": "s",
+    "bearing_convention": "clockwise_from_north",
+    "origin_lat": 49.3754,
+    "origin_lon": 31.1882,
+    "note": "Illustrative ENU geometry; real terrain is provided by world-generator teammate later"
+  },
+  "duration_s": 30,
+  "sample_period_s": 1.0,
+  "sensors": [
+    {
+      "id": "RF1",
+      "type": "rf_aoa",
+      "x_m": 0.0,
+      "y_m": 0.0
+    },
+    {
+      "id": "RF2",
+      "type": "rf_aoa",
+      "x_m": 6000.0,
+      "y_m": 0.0
+    }
+  ],
+  "observations": [
+    {
+      "id": "obs_0001",
+      "timestamp_s": 0.0,
+      "sensor_id": "RF1",
+      "bearing_deg": 44.85591,
+      "frequency_mhz": 2437.5,
+      "power_dbm": -92.905
+    },
+    {
+      "id": "obs_0002",
+      "timestamp_s": 0.0,
+      "sensor_id": "RF2",
+      "bearing_deg": 314.88868,
+      "frequency_mhz": 2437.5,
+      "power_dbm": -92.03
+    },
+    {
+      "id": "obs_0003",
+      "timestamp_s": 1.0,
+      "sensor_id": "RF1",
+      "bearing_deg": 44.9484,
+      "frequency_mhz": 2437.5,
+      "power_dbm": -94.275
+    },
+    {
+      "id": "obs_0004",
+      "timestamp_s": 1.0,
+      "sensor_id": "RF2",
+      "bearing_deg": 315.6383,
+      "frequency_mhz": 2437.5,
+      "power_dbm": -92.987
+    },
+    {
+      "id": "obs_0005",
+      "timestamp_s": 2.0,
+      "sensor_id": "RF1",
+      "bearing_deg": 44.93422,
+      "frequency_mhz": 2437.5,
+      "power_dbm": -92.708
+    },
+    {
+      "id": "obs_0006",
+      "timestamp_s": 2.0,
+      "sensor_id": "RF2",
+      "bearing_deg": 315.84506,
+      "frequency_mhz": 2437.5,
+      "power_dbm": -91.545
+    },
+    {
+      "id": "obs_0007",
+      "timestamp_s": 3.0,
+      "sensor_id": "RF1",
+      "bearing_deg": 45.88221,
+      "frequency_mhz": 2437.5,
+      "power_dbm": -92.759
+    },
+    {
+      "id": "obs_0008",
+      "timestamp_s": 3.0,
+      "sensor_id": "RF2",
+      "bearing_deg": 315.18201,
+      "frequency_mhz": 2437.5,
+      "power_dbm": -93.713
+    },
+    {
+      "id": "obs_0009",
+      "timestamp_s": 4.0,
+      "sensor_id": "RF1",
+      "bearing_deg": 45.54553,
+      "frequency_mhz": 2437.5,
+      "power_dbm": -91.604
+    },
+    {
+      "id": "obs_0010",
+      "timestamp_s": 4.0,
+      "sensor_id": "RF2",
+      "bearing_deg": 316.27033,
+      "frequency_mhz": 2437.5,
+      "power_dbm": -92.793
+    },
+    {
+      "id": "obs_0011",
+      "timestamp_s": 5.0,
+      "sensor_id": "RF1",
+      "bearing_deg": 45.90382,
+      "frequency_mhz": 2437.5,
+      "power_dbm": -94.414
+    },
+    {
+      "id": "obs_0012",
+      "timestamp_s": 5.0,
+      "sensor_id": "RF2",
+      "bearing_deg": 316.2255,
+      "frequency_mhz": 2437.5,
+      "power_dbm": -92.186
+    },
+    {
+      "id": "obs_0013",
+      "timestamp_s": 6.0,
+      "sensor_id": "RF1",
+      "bearing_deg": 46.31755,
+      "frequency_mhz": 2437.5,
+      "power_dbm": -93.246
+    },
+    {
+      "id": "obs_0014",
+      "timestamp_s": 6.0,
+      "sensor_id": "RF2",
+      "bearing_deg": 317.22421,
+      "frequency_mhz": 2437.5,
+      "power_dbm": -92.418
+    },
+    {
+      "id": "obs_0015",
+      "timestamp_s": 7.0,
+      "sensor_id": "RF1",
+      "bearing_deg": 46.29783,
+      "frequency_mhz": 2437.5,
+      "power_dbm": -94.164
+    },
+    {
+      "id": "obs_0016",
+      "timestamp_s": 7.0,
+      "sensor_id": "RF2",
+      "bearing_deg": 317.72642,
+      "frequency_mhz": 2437.5,
+      "power_dbm": -94.171
+    },
+    {
+      "id": "obs_0017",
+      "timestamp_s": 8.0,
+      "sensor_id": "RF1",
+      "bearing_deg": 42.96618,
+      "frequency_mhz": 2437.5,
+      "power_dbm": -93.702
+    },
+    {
+      "id": "obs_0018",
+      "timestamp_s": 8.0,
+      "sensor_id": "RF2",
+      "bearing_deg": 316.55364,
+      "frequency_mhz": 2437.5,
+      "power_dbm": -91.771
+    },
+    {
+      "id": "obs_0019",
+      "timestamp_s": 9.0,
+      "sensor_id": "RF1",
+      "bearing_deg": 46.3203,
+      "frequency_mhz": 2437.5,
+      "power_dbm": -94.358
+    },
+    {
+      "id": "obs_0020",
+      "timestamp_s": 9.0,
+      "sensor_id": "RF2",
+      "bearing_deg": 318.62878,
+      "frequency_mhz": 2437.5,
+      "power_dbm": -93.639
+    },
+    {
+      "id": "obs_0021",
+      "timestamp_s": 10.0,
+      "sensor_id": "RF1",
+      "bearing_deg": 45.63898,
+      "frequency_mhz": 2437.5,
+      "power_dbm": -93.478
+    },
+    {
+      "id": "obs_0022",
+      "timestamp_s": 11.0,
+      "sensor_id": "RF1",
+      "bearing_deg": 45.90814,
+      "frequency_mhz": 2437.5,
+      "power_dbm": -92.409
+    },
+    {
+      "id": "obs_0023",
+      "timestamp_s": 12.0,
+      "sensor_id": "RF1",
+      "bearing_deg": 46.49994,
+      "frequency_mhz": 2437.5,
+      "power_dbm": -92.922
+    },
+    {
+      "id": "obs_0024",
+      "timestamp_s": 13.0,
+      "sensor_id": "RF1",
+      "bearing_deg": 46.5786,
+      "frequency_mhz": 2437.5,
+      "power_dbm": -92.837
+    },
+    {
+      "id": "obs_0025",
+      "timestamp_s": 14.0,
+      "sensor_id": "RF1",
+      "bearing_deg": 45.36813,
+      "frequency_mhz": 2437.5,
+      "power_dbm": -94.076
+    },
+    {
+      "id": "obs_0026",
+      "timestamp_s": 15.0,
+      "sensor_id": "RF1",
+      "bearing_deg": 45.59094,
+      "frequency_mhz": 2437.5,
+      "power_dbm": -92.902
+    },
+    {
+      "id": "obs_0027",
+      "timestamp_s": 15.0,
+      "sensor_id": "RF2",
+      "bearing_deg": 319.41674,
+      "frequency_mhz": 2437.5,
+      "power_dbm": -90.249
+    },
+    {
+      "id": "obs_0028",
+      "timestamp_s": 16.0,
+      "sensor_id": "RF1",
+      "bearing_deg": 45.30677,
+      "frequency_mhz": 2437.5,
+      "power_dbm": -94.543
+    },
+    {
+      "id": "obs_0029",
+      "timestamp_s": 16.0,
+      "sensor_id": "RF2",
+      "bearing_deg": 320.75169,
+      "frequency_mhz": 2437.5,
+      "power_dbm": -91.155
+    },
+    {
+      "id": "obs_0030",
+      "timestamp_s": 17.0,
+      "sensor_id": "RF1",
+      "bearing_deg": 46.69626,
+      "frequency_mhz": 2437.5,
+      "power_dbm": -92.652
+    },
+    {
+      "id": "obs_0031",
+      "timestamp_s": 17.0,
+      "sensor_id": "RF2",
+      "bearing_deg": 321.72647,
+      "frequency_mhz": 2437.5,
+      "power_dbm": -92.664
+    },
+    {
+      "id": "obs_0032",
+      "timestamp_s": 18.0,
+      "sensor_id": "RF1",
+      "bearing_deg": 44.83149,
+      "frequency_mhz": 2437.5,
+      "power_dbm": -94.062
+    },
+    {
+      "id": "obs_0033",
+      "timestamp_s": 18.0,
+      "sensor_id": "RF2",
+      "bearing_deg": 321.57048,
+      "frequency_mhz": 2437.5,
+      "power_dbm": -94.006
+    },
+    {
+      "id": "obs_0034",
+      "timestamp_s": 19.0,
+      "sensor_id": "RF1",
+      "bearing_deg": 46.35124,
+      "frequency_mhz": 2437.5,
+      "power_dbm": -93.319
+    },
+    {
+      "id": "obs_0035",
+      "timestamp_s": 19.0,
+      "sensor_id": "RF2",
+      "bearing_deg": 320.61996,
+      "frequency_mhz": 2437.5,
+      "power_dbm": -91.832
+    },
+    {
+      "id": "obs_0036",
+      "timestamp_s": 20.0,
+      "sensor_id": "RF1",
+      "bearing_deg": 46.96113,
+      "frequency_mhz": 2437.5,
+      "power_dbm": -91.293
+    },
+    {
+      "id": "obs_0037",
+      "timestamp_s": 20.0,
+      "sensor_id": "RF2",
+      "bearing_deg": 321.874,
+      "frequency_mhz": 2437.5,
+      "power_dbm": -93.158
+    },
+    {
+      "id": "obs_0038",
+      "timestamp_s": 21.0,
+      "sensor_id": "RF1",
+      "bearing_deg": 45.8806,
+      "frequency_mhz": 2437.5,
+      "power_dbm": -94.488
+    },
+    {
+      "id": "obs_0039",
+      "timestamp_s": 21.0,
+      "sensor_id": "RF2",
+      "bearing_deg": 322.52527,
+      "frequency_mhz": 2437.5,
+      "power_dbm": -93.109
+    },
+    {
+      "id": "obs_0040",
+      "timestamp_s": 22.0,
+      "sensor_id": "RF1",
+      "bearing_deg": 46.43358,
+      "frequency_mhz": 2437.5,
+      "power_dbm": -92.949
+    },
+    {
+      "id": "obs_0041",
+      "timestamp_s": 22.0,
+      "sensor_id": "RF2",
+      "bearing_deg": 321.16896,
+      "frequency_mhz": 2437.5,
+      "power_dbm": -92.83
+    },
+    {
+      "id": "obs_0042",
+      "timestamp_s": 23.0,
+      "sensor_id": "RF1",
+      "bearing_deg": 44.72341,
+      "frequency_mhz": 2437.5,
+      "power_dbm": -94.822
+    },
+    {
+      "id": "obs_0043",
+      "timestamp_s": 23.0,
+      "sensor_id": "RF2",
+      "bearing_deg": 321.64456,
+      "frequency_mhz": 2437.5,
+      "power_dbm": -92.114
+    },
+    {
+      "id": "obs_0044",
+      "timestamp_s": 24.0,
+      "sensor_id": "RF1",
+      "bearing_deg": 47.81847,
+      "frequency_mhz": 2437.5,
+      "power_dbm": -93.8
+    },
+    {
+      "id": "obs_0045",
+      "timestamp_s": 24.0,
+      "sensor_id": "RF2",
+      "bearing_deg": 322.79397,
+      "frequency_mhz": 2437.5,
+      "power_dbm": -92.356
+    },
+    {
+      "id": "obs_0046",
+      "timestamp_s": 25.0,
+      "sensor_id": "RF1",
+      "bearing_deg": 47.76943,
+      "frequency_mhz": 2437.5,
+      "power_dbm": -92.929
+    },
+    {
+      "id": "obs_0047",
+      "timestamp_s": 25.0,
+      "sensor_id": "RF2",
+      "bearing_deg": 323.12701,
+      "frequency_mhz": 2437.5,
+      "power_dbm": -93.53
+    },
+    {
+      "id": "obs_0048",
+      "timestamp_s": 26.0,
+      "sensor_id": "RF1",
+      "bearing_deg": 47.64721,
+      "frequency_mhz": 2437.5,
+      "power_dbm": -93.483
+    },
+    {
+      "id": "obs_0049",
+      "timestamp_s": 26.0,
+      "sensor_id": "RF2",
+      "bearing_deg": 324.40136,
+      "frequency_mhz": 2437.5,
+      "power_dbm": -92.544
+    },
+    {
+      "id": "obs_0050",
+      "timestamp_s": 27.0,
+      "sensor_id": "RF1",
+      "bearing_deg": 48.75552,
+      "frequency_mhz": 2437.5,
+      "power_dbm": -94.263
+    },
+    {
+      "id": "obs_0051",
+      "timestamp_s": 27.0,
+      "sensor_id": "RF2",
+      "bearing_deg": 325.08895,
+      "frequency_mhz": 2437.5,
+      "power_dbm": -92.394
+    },
+    {
+      "id": "obs_0052",
+      "timestamp_s": 28.0,
+      "sensor_id": "RF1",
+      "bearing_deg": 46.34419,
+      "frequency_mhz": 2437.5,
+      "power_dbm": -95.074
+    },
+    {
+      "id": "obs_0053",
+      "timestamp_s": 28.0,
+      "sensor_id": "RF2",
+      "bearing_deg": 323.66668,
+      "frequency_mhz": 2437.5,
+      "power_dbm": -91.081
+    },
+    {
+      "id": "obs_0054",
+      "timestamp_s": 29.0,
+      "sensor_id": "RF1",
+      "bearing_deg": 47.73434,
+      "frequency_mhz": 2437.5,
+      "power_dbm": -93.297
+    },
+    {
+      "id": "obs_0055",
+      "timestamp_s": 29.0,
+      "sensor_id": "RF2",
+      "bearing_deg": 321.76399,
+      "frequency_mhz": 2437.5,
+      "power_dbm": -91.789
+    }
+  ],
+  "ground_truth": [
+    {
+      "timestamp_s": 0.0,
+      "object_id": "D1",
+      "x_m": 3000.0,
+      "y_m": 3000.0
+    },
+    {
+      "timestamp_s": 1.0,
+      "object_id": "D1",
+      "x_m": 3020.0,
+      "y_m": 3012.0
+    },
+    {
+      "timestamp_s": 2.0,
+      "object_id": "D1",
+      "x_m": 3040.0,
+      "y_m": 3024.0
+    },
+    {
+      "timestamp_s": 3.0,
+      "object_id": "D1",
+      "x_m": 3060.0,
+      "y_m": 3036.0
+    },
+    {
+      "timestamp_s": 4.0,
+      "object_id": "D1",
+      "x_m": 3080.0,
+      "y_m": 3048.0
+    },
+    {
+      "timestamp_s": 5.0,
+      "object_id": "D1",
+      "x_m": 3100.0,
+      "y_m": 3060.0
+    },
+    {
+      "timestamp_s": 6.0,
+      "object_id": "D1",
+      "x_m": 3120.0,
+      "y_m": 3072.0
+    },
+    {
+      "timestamp_s": 7.0,
+      "object_id": "D1",
+      "x_m": 3140.0,
+      "y_m": 3084.0
+    },
+    {
+      "timestamp_s": 8.0,
+      "object_id": "D1",
+      "x_m": 3160.0,
+      "y_m": 3096.0
+    },
+    {
+      "timestamp_s": 9.0,
+      "object_id": "D1",
+      "x_m": 3180.0,
+      "y_m": 3108.0
+    },
+    {
+      "timestamp_s": 10.0,
+      "object_id": "D1",
+      "x_m": 3200.0,
+      "y_m": 3120.0
+    },
+    {
+      "timestamp_s": 11.0,
+      "object_id": "D1",
+      "x_m": 3220.0,
+      "y_m": 3132.0
+    },
+    {
+      "timestamp_s": 12.0,
+      "object_id": "D1",
+      "x_m": 3240.0,
+      "y_m": 3144.0
+    },
+    {
+      "timestamp_s": 13.0,
+      "object_id": "D1",
+      "x_m": 3260.0,
+      "y_m": 3156.0
+    },
+    {
+      "timestamp_s": 14.0,
+      "object_id": "D1",
+      "x_m": 3280.0,
+      "y_m": 3168.0
+    },
+    {
+      "timestamp_s": 15.0,
+      "object_id": "D1",
+      "x_m": 3300.0,
+      "y_m": 3180.0
+    },
+    {
+      "timestamp_s": 16.0,
+      "object_id": "D1",
+      "x_m": 3320.0,
+      "y_m": 3192.0
+    },
+    {
+      "timestamp_s": 17.0,
+      "object_id": "D1",
+      "x_m": 3340.0,
+      "y_m": 3204.0
+    },
+    {
+      "timestamp_s": 18.0,
+      "object_id": "D1",
+      "x_m": 3360.0,
+      "y_m": 3216.0
+    },
+    {
+      "timestamp_s": 19.0,
+      "object_id": "D1",
+      "x_m": 3380.0,
+      "y_m": 3228.0
+    },
+    {
+      "timestamp_s": 20.0,
+      "object_id": "D1",
+      "x_m": 3400.0,
+      "y_m": 3240.0
+    },
+    {
+      "timestamp_s": 21.0,
+      "object_id": "D1",
+      "x_m": 3420.0,
+      "y_m": 3252.0
+    },
+    {
+      "timestamp_s": 22.0,
+      "object_id": "D1",
+      "x_m": 3440.0,
+      "y_m": 3264.0
+    },
+    {
+      "timestamp_s": 23.0,
+      "object_id": "D1",
+      "x_m": 3460.0,
+      "y_m": 3276.0
+    },
+    {
+      "timestamp_s": 24.0,
+      "object_id": "D1",
+      "x_m": 3480.0,
+      "y_m": 3288.0
+    },
+    {
+      "timestamp_s": 25.0,
+      "object_id": "D1",
+      "x_m": 3500.0,
+      "y_m": 3300.0
+    },
+    {
+      "timestamp_s": 26.0,
+      "object_id": "D1",
+      "x_m": 3520.0,
+      "y_m": 3312.0
+    },
+    {
+      "timestamp_s": 27.0,
+      "object_id": "D1",
+      "x_m": 3540.0,
+      "y_m": 3324.0
+    },
+    {
+      "timestamp_s": 28.0,
+      "object_id": "D1",
+      "x_m": 3560.0,
+      "y_m": 3336.0
+    },
+    {
+      "timestamp_s": 29.0,
+      "object_id": "D1",
+      "x_m": 3580.0,
+      "y_m": 3348.0
+    }
+  ],
+  "associations": [
+    {
+      "observation_id": "obs_0001",
+      "source_object_id": "D1"
+    },
+    {
+      "observation_id": "obs_0002",
+      "source_object_id": "D1"
+    },
+    {
+      "observation_id": "obs_0003",
+      "source_object_id": "D1"
+    },
+    {
+      "observation_id": "obs_0004",
+      "source_object_id": "D1"
+    },
+    {
+      "observation_id": "obs_0005",
+      "source_object_id": "D1"
+    },
+    {
+      "observation_id": "obs_0006",
+      "source_object_id": "D1"
+    },
+    {
+      "observation_id": "obs_0007",
+      "source_object_id": "D1"
+    },
+    {
+      "observation_id": "obs_0008",
+      "source_object_id": "D1"
+    },
+    {
+      "observation_id": "obs_0009",
+      "source_object_id": "D1"
+    },
+    {
+      "observation_id": "obs_0010",
+      "source_object_id": "D1"
+    },
+    {
+      "observation_id": "obs_0011",
+      "source_object_id": "D1"
+    },
+    {
+      "observation_id": "obs_0012",
+      "source_object_id": "D1"
+    },
+    {
+      "observation_id": "obs_0013",
+      "source_object_id": "D1"
+    },
+    {
+      "observation_id": "obs_0014",
+      "source_object_id": "D1"
+    },
+    {
+      "observation_id": "obs_0015",
+      "source_object_id": "D1"
+    },
+    {
+      "observation_id": "obs_0016",
+      "source_object_id": "D1"
+    },
+    {
+      "observation_id": "obs_0017",
+      "source_object_id": "D1"
+    },
+    {
+      "observation_id": "obs_0018",
+      "source_object_id": "D1"
+    },
+    {
+      "observation_id": "obs_0019",
+      "source_object_id": "D1"
+    },
+    {
+      "observation_id": "obs_0020",
+      "source_object_id": "D1"
+    },
+    {
+      "observation_id": "obs_0021",
+      "source_object_id": "D1"
+    },
+    {
+      "observation_id": "obs_0022",
+      "source_object_id": "D1"
+    },
+    {
+      "observation_id": "obs_0023",
+      "source_object_id": "D1"
+    },
+    {
+      "observation_id": "obs_0024",
+      "source_object_id": "D1"
+    },
+    {
+      "observation_id": "obs_0025",
+      "source_object_id": "D1"
+    },
+    {
+      "observation_id": "obs_0026",
+      "source_object_id": "D1"
+    },
+    {
+      "observation_id": "obs_0027",
+      "source_object_id": "D1"
+    },
+    {
+      "observation_id": "obs_0028",
+      "source_object_id": "D1"
+    },
+    {
+      "observation_id": "obs_0029",
+      "source_object_id": "D1"
+    },
+    {
+      "observation_id": "obs_0030",
+      "source_object_id": "D1"
+    },
+    {
+      "observation_id": "obs_0031",
+      "source_object_id": "D1"
+    },
+    {
+      "observation_id": "obs_0032",
+      "source_object_id": "D1"
+    },
+    {
+      "observation_id": "obs_0033",
+      "source_object_id": "D1"
+    },
+    {
+      "observation_id": "obs_0034",
+      "source_object_id": "D1"
+    },
+    {
+      "observation_id": "obs_0035",
+      "source_object_id": "D1"
+    },
+    {
+      "observation_id": "obs_0036",
+      "source_object_id": "D1"
+    },
+    {
+      "observation_id": "obs_0037",
+      "source_object_id": "D1"
+    },
+    {
+      "observation_id": "obs_0038",
+      "source_object_id": "D1"
+    },
+    {
+      "observation_id": "obs_0039",
+      "source_object_id": "D1"
+    },
+    {
+      "observation_id": "obs_0040",
+      "source_object_id": "D1"
+    },
+    {
+      "observation_id": "obs_0041",
+      "source_object_id": "D1"
+    },
+    {
+      "observation_id": "obs_0042",
+      "source_object_id": "D1"
+    },
+    {
+      "observation_id": "obs_0043",
+      "source_object_id": "D1"
+    },
+    {
+      "observation_id": "obs_0044",
+      "source_object_id": "D1"
+    },
+    {
+      "observation_id": "obs_0045",
+      "source_object_id": "D1"
+    },
+    {
+      "observation_id": "obs_0046",
+      "source_object_id": "D1"
+    },
+    {
+      "observation_id": "obs_0047",
+      "source_object_id": "D1"
+    },
+    {
+      "observation_id": "obs_0048",
+      "source_object_id": "D1"
+    },
+    {
+      "observation_id": "obs_0049",
+      "source_object_id": "D1"
+    },
+    {
+      "observation_id": "obs_0050",
+      "source_object_id": "D1"
+    },
+    {
+      "observation_id": "obs_0051",
+      "source_object_id": "D1"
+    },
+    {
+      "observation_id": "obs_0052",
+      "source_object_id": "D1"
+    },
+    {
+      "observation_id": "obs_0053",
+      "source_object_id": "D1"
+    },
+    {
+      "observation_id": "obs_0054",
+      "source_object_id": "D1"
+    },
+    {
+      "observation_id": "obs_0055",
+      "source_object_id": "D1"
+    }
+  ]
+}

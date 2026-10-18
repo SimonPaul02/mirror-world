@@ -29,8 +29,8 @@ const PATH_SAMPLES = 40;
  * this is a flat allowance rather than real clutter data.
  */
 const CLUTTER_M = 6;
-/** Shadowing is correlated in time; this is the per-report blend factor. */
-const FADE_BLEND = 0.18;
+/** Shadowing decorrelation time, seconds of scenario time. */
+const FADE_CORRELATION_S = 10;
 /** Standard deviation of the log-normal shadowing, dB. */
 const FADE_SIGMA_DB = 2.6;
 /**
@@ -59,6 +59,10 @@ export interface Detection {
   fsplDb: number;
   /** Diffraction loss over the terrain in the way, dB. */
   terrainLossDb: number;
+  /** Fraction of path samples with an actual terrain height available. */
+  terrainCoverage: number;
+  /** False when terrain at the receiver or anywhere on the RF path is unknown. */
+  terrainComplete: boolean;
   rssiDbm: number;
   snrDb: number;
   /** Bearing uncertainty this report, degrees 1σ. */
@@ -84,13 +88,14 @@ export interface Fix {
  * ITU-R P.526 single knife-edge diffraction loss, as a function of the Fresnel
  * parameter v. Below -0.78 the path is clear enough to call it free space.
  */
-function knifeEdgeLossDb(v: number): number {
+export function knifeEdgeLossDb(v: number): number {
   if (v <= -0.78) return 0;
   return 6.9 + 20 * Math.log10(Math.sqrt((v - 0.1) ** 2 + 1) + v - 0.1);
 }
 
 /** Free-space path loss, dB, for a distance in metres and a frequency in MHz. */
-function fsplDb(distanceM: number, freqMhz: number): number {
+export function fsplDb(distanceM: number, freqMhz: number): number {
+  if (!Number.isFinite(distanceM) || distanceM < 0 || !Number.isFinite(freqMhz) || freqMhz <= 0) throw new Error("RF path loss requires a nonnegative distance and positive frequency");
   const km = Math.max(distanceM, 1) / 1000;
   return 20 * Math.log10(km) + 20 * Math.log10(freqMhz) + 32.44;
 }
@@ -111,18 +116,20 @@ function terrainLossDb(
   freqMhz: number,
   sampleTerrain: TerrainSampler,
   scratch: Cartographic,
-): number {
+): { lossDb: number; coverage: number } {
   const total = geodesic.surfaceDistance;
-  if (total < 50) return 0;
+  if (total < 50) return { lossDb: 0, coverage: 1 };
 
   const lambda = C / (freqMhz * 1e6);
   let worstV = Number.NEGATIVE_INFINITY;
+  let knownSamples = 0;
 
   for (let i = 1; i < PATH_SAMPLES; i += 1) {
     const t = i / PATH_SAMPLES;
     const point = geodesic.interpolateUsingFraction(t, scratch);
     const ground = sampleTerrain(point);
     if (ground === undefined) continue;
+    knownSamples += 1;
 
     const d1 = total * t;
     const d2 = total - d1;
@@ -134,7 +141,10 @@ function terrainLossDb(
     if (v > worstV) worstV = v;
   }
 
-  return Number.isFinite(worstV) ? knifeEdgeLossDb(worstV) : 0;
+  return {
+    lossDb: Number.isFinite(worstV) ? knifeEdgeLossDb(worstV) : 0,
+    coverage: knownSamples / (PATH_SAMPLES - 1),
+  };
 }
 
 /**
@@ -154,6 +164,7 @@ export class SignalModel {
     private readonly emitter: Emitter,
     private readonly sampleTerrain: TerrainSampler,
     private readonly random: Random,
+    private readonly options: { samplePeriodS?: number; shadowingSigmaDb?: number; bearingNoiseScale?: number } = {},
   ) {
     for (const rx of receivers) this.fade.set(rx.uid, 0);
   }
@@ -170,7 +181,8 @@ export class SignalModel {
   }
 
   private measure(receiver: ReceiverSite, target: Cartographic): Detection {
-    const antennaHae = this.antennaHae(receiver);
+    const receiverGround = this.sampleTerrain(Cartographic.fromDegrees(receiver.lon, receiver.lat));
+    const antennaHae = (receiverGround ?? 0) + receiver.mastM;
     const site = Cartographic.fromDegrees(receiver.lon, receiver.lat, 0, this.siteScratch);
     this.geodesic.setEndPoints(site, target);
 
@@ -192,13 +204,14 @@ export class SignalModel {
 
     // Shadowing drifts rather than jumps: a first-order filter on white noise.
     const previous = this.fade.get(receiver.uid) ?? 0;
-    const fade =
-      previous * (1 - FADE_BLEND) + gaussian(this.random) * FADE_SIGMA_DB * FADE_BLEND;
+    const alpha = Math.exp(-(this.options.samplePeriodS ?? 2) / FADE_CORRELATION_S);
+    const fade = previous * alpha + gaussian(this.random) * (this.options.shadowingSigmaDb ?? FADE_SIGMA_DB) * Math.sqrt(1 - alpha * alpha);
     this.fade.set(receiver.uid, fade);
 
-    const rssiDbm = this.emitter.eirpDbm + receiver.gainDbi - loss - terrain + fade;
+    const rssiDbm = this.emitter.eirpDbm + receiver.gainDbi - loss - terrain.lossDb + fade;
     const snrDb = rssiDbm - receiver.noiseFloorDbm;
-    const heard = snrDb >= receiver.detectSnrDb;
+    const terrainComplete = receiverGround !== undefined && terrain.coverage === 1;
+    const heard = terrainComplete && snrDb >= receiver.detectSnrDb;
 
     // σ = √(calibration² + (K/√SNR)²): the array's own floor, plus the part
     // that grows as the signal sinks toward the noise.
@@ -209,9 +222,9 @@ export class SignalModel {
       45,
     );
 
-    const bearingError = heard ? gaussian(this.random) * sigmaDeg + receiver.biasDeg : 0;
+    const bearingError = heard ? gaussian(this.random) * sigmaDeg * (this.options.bearingNoiseScale ?? 1) + receiver.biasDeg : 0;
     // The elevation channel of the same array is the weaker one.
-    const elevationError = heard ? gaussian(this.random) * sigmaDeg * 1.6 : 0;
+    const elevationError = heard ? gaussian(this.random) * sigmaDeg * 1.6 * (this.options.bearingNoiseScale ?? 1) : 0;
 
     return {
       receiver,
@@ -220,11 +233,13 @@ export class SignalModel {
       groundRangeM,
       slantRangeM,
       trueBearingDeg,
-      measuredBearingDeg: (trueBearingDeg + bearingError + 360) % 360,
+      measuredBearingDeg: ((trueBearingDeg + bearingError) % 360 + 360) % 360,
       trueElevationDeg,
       measuredElevationDeg: trueElevationDeg + elevationError,
       fsplDb: loss,
-      terrainLossDb: terrain,
+      terrainLossDb: terrain.lossDb,
+      terrainCoverage: terrain.coverage,
+      terrainComplete,
       rssiDbm,
       snrDb,
       sigmaDeg,
@@ -248,11 +263,12 @@ const cross2 = (ax: number, ay: number, bx: number, by: number): number => ax * 
  * behind one of the arrays.
  */
 export function crossBearings(detections: Detection[]): Fix | undefined {
-  const heard = detections.filter((d) => d.heard);
+  const heard = detections.filter((d) => d.heard && [d.measuredBearingDeg, d.measuredElevationDeg, d.sigmaDeg, d.receiver.lat, d.receiver.lon, d.antennaHae].every(Number.isFinite));
   if (heard.length < 2) return undefined;
 
-  // The two strongest reports give the best geometry we can afford.
+  // MVP has two receivers; additional inputs use the strongest two reports.
   const [a, b] = [...heard].sort((x, y) => y.snrDb - x.snrDb) as [Detection, Detection];
+  if (a.receiver.uid === b.receiver.uid) return undefined;
 
   const origin = Cartographic.fromDegrees(a.receiver.lon, a.receiver.lat, 0);
   const enu = Transforms.eastNorthUpToFixedFrame(Cartographic.toCartesian(origin));
@@ -276,12 +292,12 @@ export function crossBearings(detections: Detection[]): Fix | undefined {
 
   const denominator = cross2(uax, uay, ubx, uby);
   const crossAngleDeg = toDeg(Math.asin(clamp(Math.abs(denominator), 0, 1)));
-  if (crossAngleDeg < 8) return undefined;
+  if (Math.abs(denominator) < 0.15) return undefined;
 
   // Distance along A's bearing to where it meets B's.
   const ta = cross2(bx, by, ubx, uby) / denominator;
   const tb = cross2(bx, by, uax, uay) / denominator;
-  if (ta <= 0 || tb <= 0) return undefined;
+  if (!Number.isFinite(ta) || !Number.isFinite(tb) || ta < 0 || tb < 0 || Math.max(ta, tb) > 200_000) return undefined;
 
   const east = ta * uax;
   const north = ta * uay;
@@ -301,7 +317,7 @@ export function crossBearings(detections: Detection[]): Fix | undefined {
 
   // Height from the nearer array's elevation channel, which is all a
   // two-axis DF array can offer — and at long range it offers very little.
-  const near = a.groundRangeM <= b.groundRangeM ? a : b;
+  const near = ta <= tb ? a : b;
   const nearRange = near === a ? ta : tb;
   const haeM =
     near.antennaHae + nearRange * Math.tan(toRad(near.measuredElevationDeg));
