@@ -10,6 +10,7 @@ import { sampleGrid, replayState, type Grid, type TruthState } from './replay-ma
 import { MQ9_MODEL } from './models';
 import { generateRfScenario, type SensorGeneratorConfig } from './sensor-generator';
 import { ScenarioView } from './scenario-view';
+import { EstimateTrail } from './estimate-trail';
 import odesaRfConfig from '../examples/rf_sensor_odesa.json';
 
 const el = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
@@ -82,6 +83,7 @@ async function main() {
   let active = false;
   let rfData: ReturnType<typeof generateRfScenario> | undefined;
   let rfView: ScenarioView | undefined;
+  let rfTrail: EstimateTrail | undefined;
   let rfTrajectory: unknown;
   let rfIndex = -1;
   let rfUrls: string[] = [];
@@ -91,6 +93,7 @@ async function main() {
     el<HTMLInputElement>(`rf${index+1}-lon`).value=String(receiver.lon);
   }
   function clearRf() {
+    rfTrail?.destroy(); rfTrail=undefined;
     rfView?.destroy(); rfView=undefined; rfData=undefined; rfIndex=-1;
     for (const url of rfUrls) URL.revokeObjectURL(url);
     rfUrls=[];
@@ -98,6 +101,7 @@ async function main() {
       el<HTMLAnchorElement>(id).removeAttribute('href'); el(id).setAttribute('aria-disabled','true');
     }
     el('rf-current').textContent='';
+    el('rf-trail-stats').textContent='No RF estimates yet.';
   }
   function simulateRf() {
     clearRf();
@@ -119,6 +123,7 @@ async function main() {
         },
       });
       rfView=new ScenarioView(viewer,[],rfData.replayFrames[0]!.detections.map(detection=>detection.receiver));
+      rfTrail=new EstimateTrail(viewer,rfData.replayFrames,rfData.scenario.ground_truth);
       const report=rfData.report;
       el('rf-status').textContent=`${report.observations} detections · ${report.missed_detections} misses · ${report.successful_bearing_crossings}/${report.sample_count} fixes. Baseline ${(report.receiver_baseline_m/1000).toFixed(1)} km.`;
       for (const [id,content,type] of [
@@ -197,6 +202,8 @@ async function main() {
         const frame=rfData.replayFrames[index]!;
         const truth=rfData.scenario.ground_truth[index]!;
         rfView.setReports(frame.detections,frame.fix,Cartesian3.fromDegrees(truth.lon,truth.lat,truth.hae_m));
+        const stats=rfTrail!.showThrough(index);
+        el('rf-trail-stats').textContent=`${stats.count} estimates · Current error: ${stats.currentErrorM === undefined ? 'no fix' : stats.currentErrorM.toFixed(0)+' m'} · RMSE so far: ${stats.rmseM === undefined ? '—' : stats.rmseM.toFixed(0)+' m'}`;
         el('rf-current').textContent=`t=${frame.timestamp_s.toFixed(1)} s · ${frame.detections.map(detection=>`${detection.receiver.uid}: ${detection.rssiDbm.toFixed(1)} dBm ${detection.heard?'heard':'missed'}`).join(' · ')} · ${frame.fix?'FIX':'NO FIX'}`;
         rfIndex=index;
       }

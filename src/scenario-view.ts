@@ -4,6 +4,8 @@ import {
   Cartesian3,
   Cartographic,
   Color,
+  ColorMaterialProperty,
+  ConstantProperty,
   HeightReference,
   HorizontalOrigin,
   LabelStyle,
@@ -18,6 +20,7 @@ import {
 import { toRad } from "./math";
 import type { ReceiverSite, Waypoint } from "./scenario";
 import type { Detection, Fix } from "./signals";
+import { errorColor, horizontalErrorM } from "./estimate-trail";
 
 const PLAN = Color.fromCssColorString("#ffb648");
 const SENSOR = Color.fromCssColorString("#8affc1");
@@ -164,8 +167,13 @@ export class ScenarioView {
 
     this.fixPosition = Cartesian3.fromDegrees(fix.lon, fix.lat, fix.haeM);
     this.fixRadius = fix.ceM;
-    const missM = Cartesian3.distance(this.fixPosition, truth);
-    this.fixLabel = `FIX  ce ±${Math.round(fix.ceM)} m · off by ${Math.round(missM)} m`;
+    const missM = horizontalErrorM(Cartographic.fromDegrees(fix.lon, fix.lat), Cartographic.fromCartesian(truth));
+    const color = errorColor(missM);
+    this.fixEntity.point!.color = new ConstantProperty(color);
+    this.fixEntity.label!.fillColor = new ConstantProperty(color);
+    this.fixRingEntity.ellipse!.material = new ColorMaterialProperty(color.withAlpha(.12));
+    this.fixRingEntity.ellipse!.outlineColor = new ConstantProperty(color.withAlpha(.85));
+    this.fixLabel = `FIX  ce ±${Math.round(fix.ceM)} m · horizontal error ${Math.round(missM)} m`;
 
     Cartesian3.clone(this.fixPosition, this.missLine[0] as Cartesian3);
     Cartesian3.clone(truth, this.missLine[1] as Cartesian3);

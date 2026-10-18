@@ -55,7 +55,14 @@
     <button id="apply-rf" type="button" disabled>Apply receiver sites</button>
     <p id="rf-status" role="status">Generate a trajectory to simulate RF reception.</p>
     <p id="rf-current" class="muted"></p>
-    <p class="footnote">Green: receivers · Yellow: bearings · Red: position fix and uncertainty. The synthetic RF errors are model assumptions.</p>
+    <p class="footnote">Mint: receivers · Yellow: bearings · Cyan: true trajectory.</p>
+    <div class="error-legend" aria-label="RF estimate horizontal error: green at 100 metres or less, yellow at 500 metres, red at 1000 metres or more">
+      <strong>RF estimate trail · horizontal error</strong>
+      <div class="error-gradient"></div>
+      <div class="error-ticks"><span>≤100 m</span><span>500 m</span><span>≥1,000 m</span></div>
+    </div>
+    <p id="rf-trail-stats" class="muted" role="status">No RF estimates yet.</p>
+    <p class="footnote">Dots and colored segments accumulate as time advances. Colors compare each RF fix with simulation truth; RMSE summarizes the visible fixes. Gaps have no fix. RF errors are simulated.</p>
     <a id="download-rf" class="download" aria-disabled="true" download="rf_scenario.json">Download RF scenario JSON ↗</a>
     <a id="download-rf-cot" class="download" aria-disabled="true" download="sensor_trace.cot">Download TAK signal trace ↗</a>
     <p class="footnote">Heights converted with EGM2008 geoid for globe display. Surface relief is 1×. Outside the amber boundary: flat globe, no local elevation data.</p>
