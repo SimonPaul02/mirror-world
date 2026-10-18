@@ -136,8 +136,9 @@ export function bearingEvent(
     },
     detail: [
       `    <contact callsign="${esc(`${receiver.uid} LOB ${detection.measuredBearingDeg.toFixed(1)}°`)}"/>`,
+      // Fixed display length for the wedge; an AoA receiver did not measure range.
       `    <sensor azimuth="${detection.measuredBearingDeg.toFixed(2)}" fov="${fov.toFixed(1)}" ` +
-        `range="${Math.round(detection.slantRangeM)}" type="RF-DF" model="2.4 GHz interferometer"/>`,
+        `range="200000" type="RF-DF" model="2.4 GHz interferometer"/>`,
       `    <remarks>Bearing only, no range. ${emitter.freqMhz} MHz at ` +
         `${dbm(detection.rssiDbm)} dBm, SNR ${detection.snrDb.toFixed(1)} dB, ` +
         `sigma ${detection.sigmaDeg.toFixed(1)} deg</remarks>`,

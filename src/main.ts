@@ -32,6 +32,7 @@ import {
   START_ISO,
 } from "./scenario";
 import { ScenarioView } from "./scenario-view";
+import { ScenarioCapture, validateScenario } from "./scenario-data";
 import { SignalModel, crossBearings, type Detection, type Fix } from "./signals";
 import { FlightSim } from "./sim";
 import { Aircraft } from "./vehicle";
@@ -48,6 +49,31 @@ const SITE_REFRESH_S = 120;
 const WARP_STEPS = [1, 5, 20, 60];
 /** Keeps the flight integrator stable when time is compressed. */
 const MAX_SIM_STEP = 0.05;
+
+/** URL configuration keeps the scenario reproducible without editing source. */
+const params = new URLSearchParams(window.location.search);
+const integerParam = (name: string, fallback: number, min: number, max: number): number => {
+  const raw = params.get(name);
+  if (raw === null) return fallback;
+  const value = Number(raw);
+  return Number.isInteger(value) && value >= min && value <= max ? value : fallback;
+};
+const runSeed = integerParam("seed", SEED, 0, 2_147_483_647);
+const reportIntervalS = integerParam("sample_s", REPORT_INTERVAL_S, 1, 60);
+const runDurationS = integerParam("duration_s", 180, 120, 21_600);
+const requestedRoute = params.get("route");
+const routeVariant = requestedRoute === "south" || requestedRoute === "varied" ? requestedRoute : "full";
+const routeRandom = mulberry32(runSeed ^ 0x5f3759df);
+const scenarioRoute = routeVariant === "south"
+  ? ROUTE.filter((point) => !["LYMAN", "DONETS", "SIVERSK"].includes(point.name))
+  : routeVariant === "varied"
+    ? ROUTE.map((point, index) => index === 0 || index === ROUTE.length - 1 ? point : {
+      ...point,
+      lon: point.lon + (routeRandom() - 0.5) * 0.02,
+      lat: point.lat + (routeRandom() - 0.5) * 0.02,
+      agl: Math.max(200, point.agl + (routeRandom() - 0.5) * 300),
+    })
+    : ROUTE;
 
 const KEY_MAP: Array<[string, string]> = [
   ["F", "Follow / free camera"],
@@ -92,7 +118,7 @@ function download(filename: string, mime: string, content: string): void {
 const stamp = (date: Date): string => date.toISOString().replace(/[:.]/g, "-").slice(0, 19);
 
 async function boot(): Promise<void> {
-  const { viewer, hasRealTerrain } = await createScene(el("cesium"));
+  const { viewer, hasRealTerrain, terrainId } = await createScene(el("cesium"));
 
   const sampleTerrain = makeTerrainSampler(viewer, () => hasRealTerrain);
   const sim = new FlightSim(MQ9, sampleTerrain);
@@ -101,11 +127,24 @@ async function boot(): Promise<void> {
   const camera = new CameraRig(viewer, controls);
   const hud = new Hud();
 
-  const route = new RouteFollower(ROUTE);
-  const view = new ScenarioView(viewer, ROUTE, RECEIVERS);
+  const route = new RouteFollower(scenarioRoute);
+  const view = new ScenarioView(viewer, scenarioRoute, RECEIVERS);
   const feed = new CotFeed();
   // One seeded generator for the whole scenario: same seed, same sensor data.
-  let signals = new SignalModel(RECEIVERS, EMITTER, sampleTerrain, mulberry32(SEED));
+  let signals = new SignalModel(RECEIVERS, EMITTER, sampleTerrain, mulberry32(runSeed));
+  const makeCapture = (): ScenarioCapture => new ScenarioCapture({
+    scenarioId: `${SCENARIO_ID}-${routeVariant}-seed-${runSeed}`,
+    startUtc: START_ISO,
+    seed: runSeed,
+    requestedDurationS: runDurationS,
+    samplePeriodS: reportIntervalS,
+    route: scenarioRoute,
+    emitter: EMITTER,
+    receivers: RECEIVERS,
+    realTerrainAvailable: hasRealTerrain,
+    terrainSource: hasRealTerrain ? terrainId : "flat ellipsoid fallback",
+  });
+  let capture = makeCapture();
 
   const scenarioStart = new Date(START_ISO);
   const startJulian = JulianDate.fromIso8601(START_ISO);
@@ -139,13 +178,14 @@ async function boot(): Promise<void> {
   };
 
   const launch = (): void => {
-    const entry = ROUTE[0] as (typeof ROUTE)[number];
+    const entry = scenarioRoute[0] as (typeof ROUTE)[number];
     route.reset();
     sim.spawn(entry.lon, entry.lat, route.launchBearingDeg(), entry.agl);
     aglTrim = 0;
     feed.clear();
     view.clear();
-    signals = new SignalModel(RECEIVERS, EMITTER, sampleTerrain, mulberry32(SEED));
+    signals = new SignalModel(RECEIVERS, EMITTER, sampleTerrain, mulberry32(runSeed));
+    capture = makeCapture();
     reportDue = 0;
     sitesPublishedAt = Number.NEGATIVE_INFINITY;
     previousFix = undefined;
@@ -180,6 +220,12 @@ async function boot(): Promise<void> {
     const detections = signals.observe(sim.state.carto);
     const fix = crossBearings(detections);
     const sequence = feed.nextSequence();
+    capture.record({
+      timestampS: sim.state.missionSeconds,
+      drone: sim.state.carto,
+      aglM: sim.state.aglHeight,
+      detections,
+    });
 
     for (const detection of detections) {
       if (detection.heard) records.push(bearingEvent(detection, EMITTER, sequence, now));
@@ -190,7 +236,7 @@ async function boot(): Promise<void> {
       // it is what the arrays alone could work out.
       let courseDeg: number | undefined;
       let speedMs: number | undefined;
-      if (previousFix && sim.state.missionSeconds - previousFix.at <= REPORT_INTERVAL_S * 4) {
+      if (previousFix && sim.state.missionSeconds - previousFix.at <= reportIntervalS * 4) {
         const span = sim.state.missionSeconds - previousFix.at;
         const from = Cartesian3.fromDegrees(previousFix.fix.lon, previousFix.fix.lat);
         const to = Cartesian3.fromDegrees(fix.lon, fix.lat);
@@ -299,8 +345,9 @@ async function boot(): Promise<void> {
         start_utc: START_ISO,
         generated_utc: new Date().toISOString(),
         elapsed_s: Math.round(sim.state.missionSeconds),
-        seed: SEED,
-        report_interval_s: REPORT_INTERVAL_S,
+        seed: runSeed,
+        report_interval_s: reportIntervalS,
+        requested_duration_s: runDurationS,
         note:
           "Every record carries a _mirrorworld element naming the scenario object " +
           "it came from and whether it is truth (truth=\"1\") or sensor derived.",
@@ -342,7 +389,7 @@ async function boot(): Promise<void> {
           clutter_allowance_m: 6,
           shadowing: "Log-normal, 2.6 dB sigma, first-order correlated in time",
           terrain: hasRealTerrain
-            ? "AWS Terrain Tiles (SRTM/3DEP/GMTED), sampled 40 points per path"
+            ? `${terrainId} terrain provider, sampled 40 points per path when tiles are available`
             : "Ellipsoid — no terrain loaded, so no masking",
         },
         geolocation: {
@@ -351,7 +398,7 @@ async function boot(): Promise<void> {
           ce_definition: "1 sigma, metres, from range × bearing sigma over the crossing angle",
           altitude: "From the nearer array's elevation channel; le grows with range",
         },
-        route: ROUTE,
+        route: scenarioRoute,
       },
       null,
       2,
@@ -359,7 +406,7 @@ async function boot(): Promise<void> {
 
   const feedHeader = (): string[] => [
     `Mirror World — ${SCENARIO_NAME}`,
-    `Scenario ${SCENARIO_ID}, seed ${SEED}, start ${START_ISO}`,
+    `Scenario ${SCENARIO_ID}, seed ${runSeed}, start ${START_ISO}`,
     `Donetsk Oblast, Ukraine. ${Math.round(sim.state.missionSeconds)} s of scenario time.`,
     `Emitter ${EMITTER.uid} at ${EMITTER.freqMhz} MHz, ${EMITTER.eirpDbm} dBm EIRP.`,
     `Arrays ${RECEIVERS.map((r) => r.uid).join(", ")}.`,
@@ -407,6 +454,14 @@ async function boot(): Promise<void> {
   el("cot-manifest").addEventListener("click", () => {
     download(`${SCENARIO_ID}-manifest.json`, "application/json", manifest());
   });
+  el("scenario-download").addEventListener("click", () => {
+    const data = capture.snapshot();
+    const issues = validateScenario(data);
+    el("scenario-export-status").textContent = issues.length
+      ? `Exported with ${issues.length} validation warning(s): ${issues.join(" ")}`
+      : `Scenario export valid: ${data.ground_truth.length} frames, ${data.observations.length} RF observations.`;
+    download(`${data.scenario_id}.json`, "application/json", JSON.stringify(data, null, 2));
+  });
 
   viewer.scene.preUpdate.addEventListener(() => {
     const now = performance.now();
@@ -445,12 +500,12 @@ async function boot(): Promise<void> {
     aircraft.recordTrail(dt * warp);
 
     const leg = `${command.from.name} → ${command.to.name}`;
-    if (sim.state.missionSeconds >= reportDue && sitesReady()) {
+    if (sim.state.missionSeconds >= reportDue && reportDue < runDurationS && sitesReady()) {
       // One report per interval even under time compression, so the feed's
       // timestamps stay evenly spaced however fast the scenario is played.
       publishReport(leg);
       reportDue =
-        Math.floor(sim.state.missionSeconds / REPORT_INTERVAL_S + 1) * REPORT_INTERVAL_S;
+        Math.floor(sim.state.missionSeconds / reportIntervalS + 1) * reportIntervalS;
       refreshFeedPanel();
     }
     refreshMissionPanel(leg, command.distanceM, command.lap);

@@ -59,6 +59,8 @@ export interface Detection {
   fsplDb: number;
   /** Diffraction loss over the terrain in the way, dB. */
   terrainLossDb: number;
+  /** Fraction of path samples with an actual terrain height available. */
+  terrainCoverage: number;
   rssiDbm: number;
   snrDb: number;
   /** Bearing uncertainty this report, degrees 1σ. */
@@ -111,18 +113,20 @@ function terrainLossDb(
   freqMhz: number,
   sampleTerrain: TerrainSampler,
   scratch: Cartographic,
-): number {
+): { lossDb: number; coverage: number } {
   const total = geodesic.surfaceDistance;
-  if (total < 50) return 0;
+  if (total < 50) return { lossDb: 0, coverage: 1 };
 
   const lambda = C / (freqMhz * 1e6);
   let worstV = Number.NEGATIVE_INFINITY;
+  let knownSamples = 0;
 
   for (let i = 1; i < PATH_SAMPLES; i += 1) {
     const t = i / PATH_SAMPLES;
     const point = geodesic.interpolateUsingFraction(t, scratch);
     const ground = sampleTerrain(point);
     if (ground === undefined) continue;
+    knownSamples += 1;
 
     const d1 = total * t;
     const d2 = total - d1;
@@ -134,7 +138,10 @@ function terrainLossDb(
     if (v > worstV) worstV = v;
   }
 
-  return Number.isFinite(worstV) ? knifeEdgeLossDb(worstV) : 0;
+  return {
+    lossDb: Number.isFinite(worstV) ? knifeEdgeLossDb(worstV) : 0,
+    coverage: knownSamples / (PATH_SAMPLES - 1),
+  };
 }
 
 /**
@@ -196,7 +203,7 @@ export class SignalModel {
       previous * (1 - FADE_BLEND) + gaussian(this.random) * FADE_SIGMA_DB * FADE_BLEND;
     this.fade.set(receiver.uid, fade);
 
-    const rssiDbm = this.emitter.eirpDbm + receiver.gainDbi - loss - terrain + fade;
+    const rssiDbm = this.emitter.eirpDbm + receiver.gainDbi - loss - terrain.lossDb + fade;
     const snrDb = rssiDbm - receiver.noiseFloorDbm;
     const heard = snrDb >= receiver.detectSnrDb;
 
@@ -224,7 +231,8 @@ export class SignalModel {
       trueElevationDeg,
       measuredElevationDeg: trueElevationDeg + elevationError,
       fsplDb: loss,
-      terrainLossDb: terrain,
+      terrainLossDb: terrain.lossDb,
+      terrainCoverage: terrain.coverage,
       rssiDbm,
       snrDb,
       sigmaDeg,
@@ -301,7 +309,7 @@ export function crossBearings(detections: Detection[]): Fix | undefined {
 
   // Height from the nearer array's elevation channel, which is all a
   // two-axis DF array can offer — and at long range it offers very little.
-  const near = a.groundRangeM <= b.groundRangeM ? a : b;
+  const near = ta <= tb ? a : b;
   const nearRange = near === a ? ta : tb;
   const haeM =
     near.antennaHae + nearRange * Math.tan(toRad(near.measuredElevationDeg));
